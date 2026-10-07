@@ -1,122 +1,99 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-void main() {
-  runApp(const MyApp());
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+/// YourFood: l'app web (assets/web) dentro una WebView.
+///
+/// Salvataggio dati, a due livelli:
+/// 1. la pagina salva nel localStorage della WebView (come nel browser);
+/// 2. ogni salvataggio viene copiato anche qui, in SharedPreferences,
+///    tramite il canale JavaScript "YourFoodNative".
+/// Se il localStorage risulta vuoto all'avvio, la copia nativa viene rimessa
+/// nella pagina con window.yourfoodRestore().
+
+const Color kBackground = Color(0xFFECF2F2);
+const String kPrefsKey = 'yourfood_state_v1';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: kBackground,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
+  final prefs = await SharedPreferences.getInstance();
+  runApp(YourFoodApp(prefs: prefs));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class YourFoodApp extends StatelessWidget {
+  const YourFoodApp({super.key, required this.prefs});
 
-  // This widget is the root of your application.
+  final SharedPreferences prefs;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'YourFood',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorSchemeSeed: const Color(0xFF0A7C85),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: WebShell(prefs: prefs),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class WebShell extends StatefulWidget {
+  const WebShell({super.key, required this.prefs});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  final SharedPreferences prefs;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<WebShell> createState() => _WebShellState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _WebShellState extends State<WebShell> {
+  late final WebViewController _controller;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(kBackground)
+      // La pagina chiama YourFoodNative.postMessage(json) a ogni salvataggio.
+      ..addJavaScriptChannel(
+        'YourFoodNative',
+        onMessageReceived: (JavaScriptMessage message) {
+          widget.prefs.setString(kPrefsKey, message.message);
+        },
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(onPageFinished: (_) => _restoreIfNeeded()),
+      )
+      ..loadFlutterAsset('assets/web/index.html');
+  }
+
+  /// Rimette nella pagina i dati salvati nativamente.
+  /// La pagina li usa solo se il suo localStorage e' vuoto.
+  Future<void> _restoreIfNeeded() async {
+    final saved = widget.prefs.getString(kPrefsKey);
+    if (saved == null || saved.isEmpty) return;
+    await _controller.runJavaScript(
+      'window.yourfoodRestore && window.yourfoodRestore(${jsonEncode(saved)});',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+      backgroundColor: kBackground,
+      body: SafeArea(child: WebViewWidget(controller: _controller)),
     );
   }
 }
