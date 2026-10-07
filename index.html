@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>YourFood</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" aria-busy="true">
+  <header class="top">
+    <div class="brand">YourFood</div>
+    <div class="status" id="status" data-kind="loading" role="status">Carico i tuoi dati</div>
+  </header>
+
+  <main>
+    <section id="tab-oggi" class="panel">
+      <div class="datebar">
+        <button class="icon-btn" type="button" data-nav="-1" aria-label="Giorno precedente">&#8249;</button>
+        <div class="datelabel">
+          <div class="d0" id="dateTag"></div>
+          <div class="d1" id="dateLabel"></div>
+        </div>
+        <button class="icon-btn" type="button" data-nav="1" aria-label="Giorno successivo">&#8250;</button>
+      </div>
+      <div id="setupNote"></div>
+      <div class="card" id="dayCard"></div>
+      <div class="card" id="numbers"></div>
+
+      <div class="card" id="addCard">
+        <h2 class="h">Aggiungi cibo</h2>
+        <div class="chips" id="mealChips" role="group" aria-label="Pasto"></div>
+        <label class="field" style="margin-top:14px">
+          <span>Cerca alimento</span>
+          <input id="foodSearch" type="search" placeholder="es. pollo, riso, yogurt greco" autocomplete="off">
+        </label>
+        <div class="results" id="foodResults"></div>
+        <div class="pick" id="foodPick" hidden>
+          <div class="pick-head"><strong id="pickName"></strong><button class="link" type="button" id="pickCancel">Annulla</button></div>
+          <div class="muted" id="pickNote"></div>
+          <div class="pick-row">
+            <label class="field"><span>Quantità (g)</span><input id="pickG" type="number" inputmode="decimal" min="1" step="1"></label>
+            <div class="preview" id="pickPreview"></div>
+          </div>
+          <button class="btn" type="button" id="pickAdd">Aggiungi</button>
+        </div>
+        <p class="msg" id="addMsg" role="status"></p>
+        <details class="custom">
+          <summary>Alimento non in lista</summary>
+          <div class="grid2">
+            <label class="field"><span>Nome</span><input id="cName" type="text" maxlength="60" placeholder="es. Panino al tonno"></label>
+            <label class="field"><span>Calorie (kcal)</span><input id="cK" type="number" inputmode="decimal" min="0" step="1"></label>
+            <label class="field"><span>Proteine (g)</span><input id="cP" type="number" inputmode="decimal" min="0" step="0.1"></label>
+            <label class="field"><span>Carboidrati (g)</span><input id="cC" type="number" inputmode="decimal" min="0" step="0.1"></label>
+            <label class="field"><span>Grassi (g)</span><input id="cF" type="number" inputmode="decimal" min="0" step="0.1"></label>
+          </div>
+          <p class="hint">Inserisci i valori dell'intera porzione che mangi. Se lasci vuote le calorie le calcolo dai macro.</p>
+          <button class="btn" type="button" id="cAdd" style="margin-top:12px">Aggiungi</button>
+        </details>
+      </div>
+
+      <div id="meals" class="panel"></div>
+    </section>
+
+    <section id="tab-obiettivi" class="panel" hidden>
+      <div class="card">
+        <h2 class="h">I tuoi dati</h2>
+        <div id="profileForm">
+          <div class="field" style="margin-bottom:14px">
+            <span>Sesso (serve alla formula)</span>
+            <div class="seg" role="group" aria-label="Sesso">
+              <button type="button" class="chip" data-sex="M" aria-pressed="true">Uomo</button>
+              <button type="button" class="chip" data-sex="F" aria-pressed="false">Donna</button>
+            </div>
+          </div>
+          <div class="grid2">
+            <label class="field"><span>Età</span><input id="pAge" type="number" inputmode="numeric" min="14" max="90" step="1" data-p="age"></label>
+            <label class="field"><span>Altezza (cm)</span><input id="pHeight" type="number" inputmode="decimal" min="120" max="230" step="1" data-p="height"></label>
+            <label class="field"><span>Peso (kg)</span><input id="pWeight" type="number" inputmode="decimal" min="35" max="200" step="0.1" data-p="weight"></label>
+            <label class="field"><span>Proteine (g per kg)</span><input id="pProtein" type="number" inputmode="decimal" min="1.2" max="3" step="0.1" data-p="protein"></label>
+          </div>
+          <div class="grid2" style="margin-top:12px">
+            <label class="field"><span>Vita di tutti i giorni</span>
+              <select id="pNeat" data-p="neat">
+                <option value="1.2">Poco movimento (scuola, molto seduto)</option>
+                <option value="1.3">Movimento leggero (cammini ogni giorno)</option>
+                <option value="1.4">Attivo (spesso in piedi, ti muovi molto)</option>
+              </select>
+            </label>
+            <label class="field"><span>Surplus per crescere</span>
+              <select id="pSurplus" data-p="surplus">
+                <option value="5">+5% (molto pulito, più lento)</option>
+                <option value="10">+10% (consigliato)</option>
+                <option value="15">+15% (più veloce, più rischio grasso)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p class="hint">Il surplus è la quota di calorie sopra il mantenimento. Per mettere muscolo senza pancia conviene restare piccoli e controllare il peso ogni settimana.</p>
+      </div>
+
+      <div class="card">
+        <h2 class="h">Settimana tipo</h2>
+        <div id="planForm"></div>
+        <div class="grid2" style="margin-top:12px" id="trainDefaults">
+          <label class="field"><span>Piscina (minuti)</span><input type="number" inputmode="numeric" min="5" max="300" step="5" data-p="swimMin" id="dSwimMin"></label>
+          <label class="field"><span>Piscina (intensità)</span><select data-p="swimInt" data-type="str" id="dSwimInt"></select></label>
+          <label class="field"><span>Pesi (minuti)</span><input type="number" inputmode="numeric" min="5" max="300" step="5" data-p="gymMin" id="dGymMin"></label>
+          <label class="field"><span>Pesi (intensità)</span><select data-p="gymInt" data-type="str" id="dGymInt"></select></label>
+        </div>
+        <p class="hint">Ogni giorno nuovo parte da questa settimana tipo. Nella schermata Oggi puoi cambiarlo quando il programma salta o cambia.</p>
+      </div>
+
+      <div class="card">
+        <h2 class="h">Fabbisogno per tipo di giorno</h2>
+        <div class="scroll" id="targetsTable"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="h">Come calcolo i numeri</h2>
+        <dl class="how">
+          <div><dt>Metabolismo basale</dt><dd>Formula di Mifflin-St Jeor: 10 × kg + 6,25 × cm − 5 × età, poi +5 per l'uomo o −161 per la donna.</dd></div>
+          <div><dt>Vita di tutti i giorni</dt><dd>Il basale moltiplicato per 1,2, 1,3 o 1,4 in base a quanto ti muovi fuori dall'allenamento.</dd></div>
+          <div><dt>Allenamento</dt><dd>Calorie nette = (MET − 1) × kg × ore. Uso MET medi: nuoto 5, 7 o 9,8 e pesi 3,5, 5 o 6 secondo l'intensità.</dd></div>
+          <div><dt>Surplus</dt><dd>Una piccola percentuale sopra il mantenimento, per costruire muscolo con poco grasso.</dd></div>
+          <div><dt>Proteine</dt><dd>1,8 g per kg di peso. Sopra 1,6 g/kg gli studi mostrano guadagni extra molto piccoli.</dd></div>
+          <div><dt>Grassi</dt><dd>25% delle calorie, mai meno di 0,8 g per kg.</dd></div>
+          <div><dt>Carboidrati</dt><dd>Tutte le calorie che restano. Per questo salgono nei giorni di sport e scendono nei giorni di riposo.</dd></div>
+          <div><dt>Il controllo vero</dt><dd>Sono stime. La pesata settimanale dice se vanno bene per te. Se il peso sale troppo in fretta o la vita aumenta, abbassa il surplus.</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section id="tab-peso" class="panel" hidden>
+      <div class="card">
+        <h2 class="h">Registra peso e vita</h2>
+        <form id="weightForm" class="grid2" novalidate>
+          <label class="field"><span>Data</span><input id="wDate" type="date"></label>
+          <label class="field"><span>Peso (kg)</span><input id="wKg" type="number" inputmode="decimal" step="0.1" min="30" max="250"></label>
+          <label class="field"><span>Vita (cm, facoltativo)</span><input id="wWaist" type="number" inputmode="decimal" step="0.5" min="40" max="200"></label>
+          <div class="field"><span>&nbsp;</span><button class="btn" type="submit">Salva</button></div>
+        </form>
+        <p class="hint">Pesati la mattina, a digiuno, dopo il bagno. La vita si misura all'altezza dell'ombelico. Il peso più recente viene usato nei calcoli.</p>
+        <p class="msg" id="wMsg" role="status"></p>
+      </div>
+      <div class="card" id="trendCard"></div>
+      <div class="card" id="weightList"></div>
+    </section>
+
+    <p class="foot">Valori degli alimenti medi e arrotondati per 100 g. Le stime non sostituiscono il parere di un nutrizionista.</p>
+  </main>
+
+  <nav class="tabs" aria-label="Sezioni">
+    <div class="in">
+      <button type="button" data-tab="oggi" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>Oggi</button>
+      <button type="button" data-tab="obiettivi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M12 19V5M19 19v-6"/></svg>Obiettivi</button>
+      <button type="button" data-tab="peso"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 10a4.5 3 0 0 1 7 0"/><path d="M12 10l1.6-1.4"/></svg>Peso</button>
+    </div>
+  </nav>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
