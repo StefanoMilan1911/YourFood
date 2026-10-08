@@ -32,8 +32,8 @@
         <h2 class="h">Aggiungi cibo</h2>
         <div class="chips" id="mealChips" role="group" aria-label="Pasto"></div>
         <label class="field" style="margin-top:14px">
-          <span>Cerca alimento</span>
-          <input id="foodSearch" type="search" placeholder="es. pollo, riso, yogurt greco" autocomplete="off">
+          <span>I tuoi alimenti</span>
+          <input id="foodSearch" type="search" placeholder="Cerca per nome" autocomplete="off">
         </label>
         <div class="results" id="foodResults"></div>
         <div class="pick" id="foodPick" hidden>
@@ -46,17 +46,18 @@
           <button class="btn" type="button" id="pickAdd">Aggiungi</button>
         </div>
         <p class="msg" id="addMsg" role="status"></p>
-        <details class="custom">
-          <summary>Alimento non in lista</summary>
+        <details class="custom" id="newFood">
+          <summary>Nuovo alimento</summary>
           <div class="grid2">
-            <label class="field"><span>Nome</span><input id="cName" type="text" maxlength="60" placeholder="es. Panino al tonno"></label>
-            <label class="field"><span>Calorie (kcal)</span><input id="cK" type="number" inputmode="decimal" min="0" step="1"></label>
-            <label class="field"><span>Proteine (g)</span><input id="cP" type="number" inputmode="decimal" min="0" step="0.1"></label>
-            <label class="field"><span>Carboidrati (g)</span><input id="cC" type="number" inputmode="decimal" min="0" step="0.1"></label>
-            <label class="field"><span>Grassi (g)</span><input id="cF" type="number" inputmode="decimal" min="0" step="0.1"></label>
+            <label class="field"><span>Nome</span><input id="cName" type="text" maxlength="60"></label>
+            <label class="field"><span>Porzione abituale (g)</span><input id="cG" type="number" inputmode="decimal" min="1" step="1" placeholder="100"></label>
+            <label class="field"><span>Calorie ogni 100 g</span><input id="cK" type="number" inputmode="decimal" min="0" step="1"></label>
+            <label class="field"><span>Proteine ogni 100 g</span><input id="cP" type="number" inputmode="decimal" min="0" step="0.1"></label>
+            <label class="field"><span>Carboidrati ogni 100 g</span><input id="cC" type="number" inputmode="decimal" min="0" step="0.1"></label>
+            <label class="field"><span>Grassi ogni 100 g</span><input id="cF" type="number" inputmode="decimal" min="0" step="0.1"></label>
           </div>
-          <p class="hint">Inserisci i valori dell'intera porzione che mangi. Se lasci vuote le calorie le calcolo dai macro.</p>
-          <button class="btn" type="button" id="cAdd" style="margin-top:12px">Aggiungi</button>
+          <p class="hint">Copia i valori dall'etichetta. Se lasci vuote le calorie le calcolo dai macro. Se scrivi un nome già salvato, lo aggiorni. Togliere un alimento dall'elenco non cancella i pasti già registrati.</p>
+          <button class="btn" type="button" id="cAdd" style="margin-top:12px">Salva nei miei alimenti</button>
         </details>
       </div>
 
@@ -127,28 +128,25 @@
           <div><dt>Proteine</dt><dd>1,8 g per kg di peso. Sopra 1,6 g/kg gli studi mostrano guadagni extra molto piccoli.</dd></div>
           <div><dt>Grassi</dt><dd>25% delle calorie, mai meno di 0,8 g per kg.</dd></div>
           <div><dt>Carboidrati</dt><dd>Tutte le calorie che restano. Per questo salgono nei giorni di sport e scendono nei giorni di riposo.</dd></div>
-          <div><dt>Il controllo vero</dt><dd>Sono stime. La pesata settimanale dice se vanno bene per te. Se il peso sale troppo in fretta o la vita aumenta, abbassa il surplus.</dd></div>
+          <div><dt>Il controllo vero</dt><dd>Sono stime. La pesata settimanale dice se vanno bene per te. Se il peso sale troppo in fretta, abbassa il surplus.</dd></div>
         </dl>
       </div>
     </section>
 
     <section id="tab-peso" class="panel" hidden>
       <div class="card">
-        <h2 class="h">Registra peso e vita</h2>
+        <h2 class="h">Registra il peso</h2>
         <form id="weightForm" class="grid2" novalidate>
           <label class="field"><span>Data</span><input id="wDate" type="date"></label>
           <label class="field"><span>Peso (kg)</span><input id="wKg" type="number" inputmode="decimal" step="0.1" min="30" max="250"></label>
-          <label class="field"><span>Vita (cm, facoltativo)</span><input id="wWaist" type="number" inputmode="decimal" step="0.5" min="40" max="200"></label>
           <div class="field"><span>&nbsp;</span><button class="btn" type="submit">Salva</button></div>
         </form>
-        <p class="hint">Pesati la mattina, a digiuno, dopo il bagno. La vita si misura all'altezza dell'ombelico. Il peso più recente viene usato nei calcoli.</p>
+        <p class="hint">Pesati la mattina, a digiuno, dopo il bagno. Il peso più recente viene usato nei calcoli.</p>
         <p class="msg" id="wMsg" role="status"></p>
       </div>
       <div class="card" id="trendCard"></div>
       <div class="card" id="weightList"></div>
     </section>
-
-    <p class="foot">Valori degli alimenti medi e arrotondati per 100 g. Le stime non sostituiscono il parere di un nutrizionista.</p>
   </main>
 
   <nav class="tabs" aria-label="Sezioni">

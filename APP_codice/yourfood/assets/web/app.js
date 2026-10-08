@@ -28,59 +28,15 @@ const WEEK=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Do
 const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,protein:1.8,
   plan:['R','R','R','R','R','R','R'],swimMin:60,swimInt:'mid',gymMin:60,gymInt:'mid',touched:false};
 
-/* nome, kcal, P, C, G (per 100 g), porzione di default in g, nota */
-const FOODS=[
-['Petto di pollo',110,23,0,1.5,150,'Peso a crudo'],
-['Riso',354,7.5,79,0.6,80,'Peso a crudo'],
-['Pasta',353,12,72,1.5,90,'Peso a crudo'],
-['Uova intere',140,12.5,1,9.5,100,'Un uovo pesa circa 50-60 g'],
-['Fiocchi d\'avena',372,13.5,60,7,50,''],
-['Yogurt greco 0%',57,10,4,0.2,170,''],
-['Banana',90,1.1,21,0.3,120,'Peso della polpa'],
-['Pane',270,8.5,55,1,60,''],
-['Latte intero',64,3.3,4.9,3.6,250,'Un bicchiere sono circa 250 ml'],
-['Tonno al naturale',103,24,0,1,80,'Sgocciolato'],
-['Patate',80,2,17.5,0.1,200,'Peso a crudo'],
-['Olio extravergine d\'oliva',899,0,0,100,10,'Un cucchiaio sono circa 10 g'],
-['Proteine whey (polvere)',400,80,8,6,30,'Un misurino sono circa 30 g'],
-['Albume',50,11,0.7,0.2,100,''],
-['Skyr',63,11,4,0.2,150,''],
-['Latte parzialmente scremato',46,3.4,5,1.5,250,''],
-['Mela',52,0.3,13.8,0.2,180,''],
-['Arance',47,0.9,11,0.2,200,''],
-['Succo d\'arancia',45,0.7,10,0.2,200,''],
-['Salmone',190,20,0,12,150,'Peso a crudo'],
-['Nasello / merluzzo',70,16,0,0.5,200,'Peso a crudo'],
-['Manzo magro macinato',130,21,0,5,150,'Peso a crudo'],
-['Fesa di tacchino',107,24,0,1,150,'Peso a crudo'],
-['Bresaola',151,32,0,2,50,''],
-['Prosciutto cotto',215,19,0.5,15,50,''],
-['Parmigiano',392,33,0,28,20,''],
-['Mozzarella',253,18,1,19,125,''],
-['Ricotta vaccina',146,9,3.5,11,100,''],
-['Lenticchie cotte',115,9,16,0.6,150,''],
-['Ceci in scatola',125,7.5,18,2.5,150,'Sgocciolati'],
-['Verdure miste',25,2,4,0.3,200,''],
-['Insalata',15,1.4,2,0.2,80,''],
-['Broccoli',30,3,3,0.4,200,''],
-['Avocado',160,2,8.5,14.7,80,''],
-['Mandorle',600,21,5,53,30,''],
-['Noci',689,15,5,68,30,''],
-['Burro di arachidi',590,25,14,50,20,''],
-['Gallette di riso',385,8,81,3,20,''],
-['Fette biscottate',410,11,75,6,30,''],
-['Biscotti secchi',430,7,75,11,30,''],
-['Marmellata',250,0.5,62,0.1,20,''],
-['Miele',304,0.3,82,0,15,''],
-['Cioccolato fondente',540,6,48,35,20,''],
-['Pizza margherita',270,11,33,10,300,'Una pizza intera pesa circa 300-350 g']
-].map((a,i)=>({i,n:a[0],k:a[1],p:a[2],c:a[3],f:a[4],g:a[5],note:a[6]}));
-
 /* ---------- state ---------- */
 const TODAY=iso(new Date());
 function defaultMeal(){const h=new Date().getHours();return h<10?'colazione':h<15?'pranzo':h<18?'spuntino':'cena';}
-const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],date:TODAY,meal:defaultMeal()};
+const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],date:TODAY,meal:defaultMeal()};
 
+function normFoods(list){
+  return (Array.isArray(list)?list:[]).filter(f=>f&&typeof f.n==='string'&&f.id).map(f=>({
+    id:String(f.id),n:f.n,k:+f.k||0,p:+f.p||0,c:+f.c||0,f:+f.f||0,g:+f.g||100,u:+f.u||0}));
+}
 function normProfile(p){
   const q=Object.assign(clone(DEFAULT_PROFILE),p||{});
   if(!Array.isArray(q.plan)||q.plan.length!==7) q.plan=DEFAULT_PROFILE.plan.slice();
@@ -116,12 +72,37 @@ function calc(p,d,actOv){
 const LS='yourfood.v1';
 let dbCol=null, dbBroken=false;
 function lsRead(){try{const raw=localStorage.getItem(LS);return raw?JSON.parse(raw):null;}catch(e){return null;}}
-function lsWrite(){try{localStorage.setItem(LS,JSON.stringify({profile:S.profile,days:S.days,weights:S.weights}));}catch(e){}}
+function lsWrite(){
+  const json=JSON.stringify({profile:S.profile,days:S.days,weights:S.weights,foods:S.foods});
+  try{localStorage.setItem(LS,json);}catch(e){}
+  nativePost(json);
+}
+/* Ponte verso l'app Android (Flutter): ogni salvataggio viene copiato anche fuori dal browser.
+   Nel browser normale window.YourFoodNative non esiste e questa parte non fa nulla. */
+function nativePost(json){
+  try{
+    if(window.YourFoodNative&&typeof window.YourFoodNative.postMessage==='function') window.YourFoodNative.postMessage(json);
+  }catch(e){}
+}
+/* Chiamata da Flutter a pagina caricata: se il browser interno e' vuoto, rimette i dati salvati nativamente. */
+window.yourfoodRestore=function(json){
+  try{
+    const data=JSON.parse(json);
+    const has=d=>!!d&&((d.profile&&d.profile.touched)||(d.days&&Object.keys(d.days).length>0)||(d.weights&&d.weights.length>0)||(d.foods&&d.foods.length>0));
+    if(has(lsRead())||!has(data)) return;
+    adopt(data);
+    S.weights.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+    lsWrite();
+    renderAll();
+    setStatus('ready');
+  }catch(e){}
+};
 function adopt(data){
   if(!data) return;
   if(data.profile) S.profile=normProfile(data.profile);
   if(data.days&&typeof data.days==='object') S.days=data.days;
   if(Array.isArray(data.weights)) S.weights=data.weights;
+  if(Array.isArray(data.foods)) S.foods=normFoods(data.foods);
 }
 function setStatus(kind){
   const el=$('#status');
@@ -141,6 +122,7 @@ const timers={}, chains={};
 function dataFor(key){
   if(key==='profile') return clone(S.profile);
   if(key==='weights') return {list:clone(S.weights)};
+  if(key==='foods') return {list:clone(S.foods)};
   const day=S.days[key.slice(2)];
   return day?clone(day):null;
 }
@@ -242,17 +224,27 @@ function renderMealChips(){
 
 /* ---------- food search and add ---------- */
 let pick=null;
+function foodById(id){return S.foods.find(f=>f.id===id)||null;}
 function searchFoods(q){
   q=norm(q.trim());
-  if(!q) return FOODS.slice(0,12);
+  const byUse=(a,b)=>(b.u||0)-(a.u||0)||a.n.localeCompare(b.n,'it');
+  if(!q) return S.foods.slice().sort(byUse).slice(0,8);
   const words=q.split(/\s+/);
-  return FOODS.filter(f=>{const n=norm(f.n);return words.every(w=>n.indexOf(w)>=0);}).slice(0,10);
+  return S.foods.filter(f=>{const n=norm(f.n);return words.every(w=>n.indexOf(w)>=0);}).sort(byUse).slice(0,10);
 }
 function renderResults(){
-  const q=$('#foodSearch').value, list=searchFoods(q), el=$('#foodResults');
-  if(!list.length){el.innerHTML='<p class="muted">Nessun risultato. Prova un altro nome oppure usa "Alimento non in lista".</p>';return;}
-  el.innerHTML=(q.trim()?'':'<div class="eyebrow">Più usati</div>')+'<ul class="list">'+list.map(f=>
-    '<li><button type="button" class="res" data-food="'+f.i+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-sub">P '+f1(f.p)+' · C '+f1(f.c)+' · G '+f1(f.f)+' ogni 100 g</span><span class="res-kcal">'+f.k+'<small> kcal</small></span></button></li>').join('')+'</ul>';
+  const q=$('#foodSearch').value.trim(), list=searchFoods(q), el=$('#foodResults');
+  if(!S.foods.length){
+    el.innerHTML='<p class="muted">Il tuo elenco è vuoto. Aggiungi il primo alimento con "Nuovo alimento" qui sotto, la prossima volta lo trovi qui.</p>';
+    return;
+  }
+  if(!list.length){
+    el.innerHTML='<p class="muted">Nessun alimento con questo nome. Aggiungilo con "Nuovo alimento" qui sotto.</p>';
+    return;
+  }
+  el.innerHTML=(q?'':'<div class="eyebrow">Usati di recente</div>')+'<ul class="list">'+list.map(f=>
+    '<li class="resrow"><button type="button" class="res" data-food="'+esc(f.id)+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-sub">P '+f1(f.p)+' · C '+f1(f.c)+' · G '+f1(f.f)+' ogni 100 g</span><span class="res-kcal">'+fmt(f.k)+'<small> kcal</small></span></button>'+
+    '<button type="button" class="x" data-fdel="'+esc(f.id)+'" aria-label="Rimuovi '+esc(f.n)+' dall\'elenco">&times;</button></li>').join('')+'</ul>';
 }
 function updatePreview(){
   const g=parseFloat($('#pickG').value), el=$('#pickPreview');
@@ -265,7 +257,7 @@ function openPick(f){
   $('#foodPick').hidden=false;
   $('#pickName').textContent=f.n;
   $('#pickNote').textContent=f.note||'';
-  $('#pickG').value=f.g;
+  $('#pickG').value=f.g||100;
   updatePreview();
   const g=$('#pickG'); g.focus(); g.select();
 }
@@ -321,17 +313,6 @@ function getTrend(){
   const slope=den?num/den:0;
   return {kgWeek:slope*7,pct:slope*7/my*100,span};
 }
-function waistTrend(){
-  const w=S.weights.filter(e=>e.waist);
-  if(w.length<2) return null;
-  const last=w[w.length-1];
-  const win=w.filter(e=>daysBetween(e.d,last.d)<=28);
-  if(win.length<2) return null;
-  const first=win[0];
-  const span=daysBetween(first.d,last.d);
-  if(span<7) return null;
-  return {delta:last.waist-first.waist,span};
-}
 function adviceFor(tr){
   if(!tr) return {tone:'info',text:'Servono pesate distribuite su almeno una settimana per capire la tendenza.'};
   if(tr.pct<0) return {tone:'warn',text:'Il peso scende. Per costruire muscolo servono più calorie. Prova ad aggiungere circa 150-200 kcal al giorno (surplus più alto) e controlla di mangiare tutto il piano nei giorni di sport.'};
@@ -371,19 +352,13 @@ function renderWeight(){
     wl.innerHTML='';
     return;
   }
-  const last=list[list.length-1], tr=getTrend(), ad=adviceFor(tr), wt=waistTrend();
+  const last=list[list.length-1], tr=getTrend(), ad=adviceFor(tr);
   let top='<div><div class="eyebrow">Ultimo peso</div><div class="big">'+f1(last.kg)+'<small>kg</small></div></div>';
   if(tr) top+='<div><div class="eyebrow">Tendenza</div><div class="big">'+(tr.kgWeek>=0?'+':'')+f1(r1(tr.kgWeek))+'<small>kg/sett. ('+(tr.pct>=0?'+':'')+f1(r1(tr.pct))+'%)</small></div></div>';
-  let waist='';
-  if(wt){
-    const t=wt.delta>=1.5?'La vita è salita di '+f1(wt.delta)+' cm in '+wt.span+' giorni. Se il peso sale veloce, riduci un po\' le calorie.':
-      wt.delta<=-1?'La vita è scesa di '+f1(-wt.delta)+' cm in '+wt.span+' giorni. Buon segno per la pancia.':'La vita è stabile in '+wt.span+' giorni.';
-    waist='<div class="tone" data-tone="'+(wt.delta>=1.5?'warn':'info')+'">'+t+'</div>';
-  }
   tc.innerHTML='<h2 class="h">Tendenza</h2><div class="trend-top">'+top+'</div>'+
-    '<div class="tone" data-tone="'+ad.tone+'">'+esc(ad.text)+'</div>'+waist+chartSVG(list);
+    '<div class="tone" data-tone="'+ad.tone+'">'+esc(ad.text)+'</div>'+chartSVG(list);
   const rows=list.slice().reverse().slice(0,12).map(e=>'<li class="row"><div class="row-main"><span class="row-name">'+f1(e.kg)+' kg</span><span class="row-sub">'+
-    parse(e.d).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'})+(e.waist?' · vita '+f1(e.waist)+' cm':'')+'</span></div><span></span>'+
+    parse(e.d).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'})+'</span></div><span></span>'+
     '<button type="button" class="x" data-wdel="'+e.d+'" aria-label="Elimina la pesata">&times;</button></li>').join('');
   wl.innerHTML='<h2 class="h">Ultime pesate</h2><ul class="list">'+rows+'</ul>';
 }
@@ -415,7 +390,12 @@ document.addEventListener('click',e=>{
   if(t.dataset.nav){S.date=addDays(S.date,+t.dataset.nav);renderHeader();renderDayCard();renderNumbers();renderMeals();return;}
   if(t.dataset.act){const d=editDay(S.date);d.act=t.dataset.act;queueSave('d-'+S.date);renderDayCard();renderNumbers();return;}
   if(t.dataset.meal){S.meal=t.dataset.meal;renderMealChips();return;}
-  if(t.dataset.food!==undefined){openPick(FOODS[+t.dataset.food]);return;}
+  if(t.dataset.food!==undefined){const f=foodById(t.dataset.food);if(f) openPick(f);return;}
+  if(t.dataset.fdel){
+    S.foods=S.foods.filter(x=>x.id!==t.dataset.fdel);
+    if(pick&&pick.id===t.dataset.fdel) closePick();
+    queueSave('foods');renderResults();return;
+  }
   if(t.dataset.del){const d=editDay(S.date);d.entries=d.entries.filter(x=>x.id!==t.dataset.del);queueSave('d-'+S.date);renderNumbers();renderMeals();return;}
   if(t.dataset.sex){S.profile.sex=t.dataset.sex;syncProfileForm();onProfileChanged();return;}
   if(t.dataset.wdel){
@@ -465,27 +445,38 @@ $('#pickAdd').addEventListener('click',()=>{
   $('#pickG').setAttribute('aria-invalid','false');
   const k=g/100;
   addEntry({meal:S.meal,name:pick.n,g:g,kcal:r1(pick.k*k),p:r1(pick.p*k),c:r1(pick.c*k),f:r1(pick.f*k)});
+  pick.u=Date.now();
+  queueSave('foods');
   closePick();
   $('#foodSearch').value='';
   renderResults();
 });
 $('#cAdd').addEventListener('click',()=>{
-  const num=id=>{const v=parseFloat($(id).value);return isFinite(v)&&v>=0?v:0;};
+  const num=id=>{const v=parseFloat(String($(id).value).replace(',','.'));return isFinite(v)&&v>=0?v:0;};
+  const name=$('#cName').value.trim();
   const p=num('#cP'),c=num('#cC'),f=num('#cF');
   let k=num('#cK');
+  if(!name){flash('#addMsg','Scrivi il nome dell\'alimento.');return;}
   if(!k) k=4*p+4*c+9*f;
   if(!(k>0)){flash('#addMsg','Inserisci almeno le calorie o i macro.');return;}
-  const name=$('#cName').value.trim()||'Alimento';
-  addEntry({meal:S.meal,name:name,g:null,kcal:r1(k),p:r1(p),c:r1(c),f:r1(f)});
-  ['#cName','#cK','#cP','#cC','#cF'].forEach(id=>{$(id).value='';});
+  const g=num('#cG')||100;
+  const key=norm(name);
+  let food=S.foods.find(x=>norm(x.n)===key);
+  if(!food){food={id:uid()};S.foods.push(food);}
+  Object.assign(food,{n:name,k:r1(k),p:r1(p),c:r1(c),f:r1(f),g:g,u:Date.now()});
+  queueSave('foods');
+  ['#cName','#cK','#cP','#cC','#cF','#cG'].forEach(id=>{$(id).value='';});
+  $('#foodSearch').value='';
+  renderResults();
+  openPick(food);
+  flash('#addMsg','Salvato nei tuoi alimenti.');
 });
 $('#weightForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const kg=parseFloat($('#wKg').value), wr=parseFloat($('#wWaist').value);
+  const kg=parseFloat($('#wKg').value);
   const d=$('#wDate').value||TODAY;
   if(!(kg>=30&&kg<=250)){flash('#wMsg','Inserisci un peso tra 30 e 250 kg.');return;}
   const entry={d:d,kg:r1(kg)};
-  if(wr>=40&&wr<=200) entry.waist=r1(wr);
   S.weights=S.weights.filter(x=>x.d!==d);
   S.weights.push(entry);
   S.weights.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
@@ -493,7 +484,7 @@ $('#weightForm').addEventListener('submit',e=>{
   const latest=S.weights[S.weights.length-1];
   if(latest.d===d){S.profile.weight=entry.kg;S.profile.touched=true;queueSave('profile');renderHeader();renderDayCard();renderNumbers();renderTargets();}
   renderWeight();
-  $('#wKg').value='';$('#wWaist').value='';
+  $('#wKg').value='';
   flash('#wMsg','Salvato.');
 });
 
@@ -522,6 +513,7 @@ async function boot(){
         const id=ds.id, data=clone(ds.data());
         if(id==='profile'){S.profile=normProfile(data);found=true;}
         else if(id==='weights'){S.weights=Array.isArray(data.list)?data.list:[];found=true;}
+        else if(id==='foods'){S.foods=normFoods(data.list);found=true;}
         else if(id.indexOf('d-')===0){S.days[id.slice(2)]=data;found=true;}
       });
       if(!found&&local){adopt(local);migrate=true;}
@@ -534,8 +526,9 @@ async function boot(){
   main.inert=false;
   $('#app').setAttribute('aria-busy','false');
   renderAll();
+  if(!S.foods.length) $('#newFood').open=true;
   setStatus('ready');
-  if(migrate){['profile','weights'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);}
+  if(migrate){['profile','weights','foods'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);}
 }
 boot();
 })();
