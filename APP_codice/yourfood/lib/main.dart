@@ -17,7 +17,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 /// Indirizzo del sito su GitHub Pages: metti il nome del tuo repository.
 /// Esempio: https://stefanomilan1911.github.io/YourFood/
-const String kSiteUrl = 'https://stefanomilan1911.github.io/YourFood/';
+const String kSiteUrl = 'https://stefanomilan1911.github.io/YourFood/index.html';
 
 const Color kBackground = Color(0xFFECF2F2);
 const String kPrefsKey = 'yourfood_state_v1';
