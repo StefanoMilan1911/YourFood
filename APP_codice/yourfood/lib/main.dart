@@ -5,7 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// YourFood: l'app web (assets/web) dentro una WebView.
+/// YourFood: il sito su GitHub Pages dentro una WebView.
+/// Per aggiornare l'app basta fare push su GitHub, senza rifare l'APK.
 ///
 /// Salvataggio dati, a due livelli:
 /// 1. la pagina salva nel localStorage della WebView (come nel browser);
@@ -13,6 +14,10 @@ import 'package:webview_flutter/webview_flutter.dart';
 ///    tramite il canale JavaScript "YourFoodNative".
 /// Se il localStorage risulta vuoto all'avvio, la copia nativa viene rimessa
 /// nella pagina con window.yourfoodRestore().
+
+/// Indirizzo del sito su GitHub Pages: metti il nome del tuo repository.
+/// Esempio: https://stefanomilan1911.github.io/YourFood/
+const String kSiteUrl = 'https://github.com/StefanoMilan1911/YourFood.git';
 
 const Color kBackground = Color(0xFFECF2F2);
 const String kPrefsKey = 'yourfood_state_v1';
@@ -76,7 +81,7 @@ class _WebShellState extends State<WebShell> {
       ..setNavigationDelegate(
         NavigationDelegate(onPageFinished: (_) => _restoreIfNeeded()),
       )
-      ..loadFlutterAsset('assets/web/index.html');
+      ..loadRequest(Uri.parse(kSiteUrl));
   }
 
   /// Rimette nella pagina i dati salvati nativamente.
