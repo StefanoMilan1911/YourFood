@@ -144,3 +144,21 @@ nav.tabs button[aria-current="page"]{color:var(--accent);background:var(--accent
 nav.tabs svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-width:420px){.hero-num{font-size:56px}.macro{grid-template-columns:84px minmax(0,1fr) auto}}
+
+/* liste, valori extra e modifica alimento */
+.sec{margin-top:16px}
+.xrow{display:grid;grid-template-columns:minmax(0,1fr) 84px 36px;gap:8px;align-items:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
+.xrow [data-xn]{grid-column:1/-1}
+.xrow select{padding-inline:8px;grid-column:2}
+.xrow .x{grid-column:3}
+.xdet{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.xdet .breakdown{margin:10px 0 0}
+.pickdetail{font-size:13px;color:var(--ink-2);margin:0}
+.pickdetail b{color:var(--ink)}
+.pick-actions{display:flex;gap:14px;align-items:center}
+.form-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:12px}
+.form-actions .btn{width:auto;flex:1 1 200px}
+
+.sec2{margin-top:12px;margin-bottom:0}
+.split{margin:14px 0 0;font-size:14px;color:var(--ink-2)}
+.split b{color:var(--ink);font-variant-numeric:tabular-nums}

@@ -18,12 +18,19 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const norm=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 const r1=n=>Math.round(n*10)/10;
+const r3=n=>Math.round(n*1000)/1000;
+const nfk=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
+const fmtX=v=>new Intl.NumberFormat('it-IT',{maximumFractionDigits:v>=100?0:v>=10?1:2}).format(v);
+const parseNum=v=>{const n=parseFloat(String(v).replace(',','.'));return isFinite(n)?n:NaN;};
 
 /* ---------- constants ---------- */
 const MEALS=[['colazione','Colazione'],['pranzo','Pranzo'],['spuntino','Spuntino'],['cena','Cena']];
 const ACTS=[['R','Riposo'],['P','Piscina'],['A','Allenamento'],['PA','Piscina + pesi']];
 const INT=[['low','Leggera'],['mid','Moderata'],['high','Intensa']];
 const MET={swim:{low:5.0,mid:7.0,high:9.8},gym:{low:3.5,mid:5.0,high:6.0}};
+const TO_G={g:1,mg:1e-3,'µg':1e-6};
+const FIXED_X=[['Fibre','#cFib'],['Zuccheri','#cSug'],['Grassi saturi','#cSat'],['Sale','#cSalt']];
+const DEFAULT_U={'vitamina a':'µg','vitamina b12':'µg','vitamina d':'µg','vitamina k':'µg','vitamina b9':'µg','folati':'µg','biotina':'µg','selenio':'µg','iodio':'µg'};
 const WEEK=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
 const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,protein:1.8,
   plan:['R','R','R','R','R','R','R'],swimMin:60,swimInt:'mid',gymMin:60,gymInt:'mid',touched:false};
@@ -31,11 +38,15 @@ const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,p
 /* ---------- state ---------- */
 const TODAY=iso(new Date());
 function defaultMeal(){const h=new Date().getHours();return h<10?'colazione':h<15?'pranzo':h<18?'spuntino':'cena';}
-const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],date:TODAY,meal:defaultMeal()};
+const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal()};
 
+let xOpen=true;
+document.addEventListener('toggle',e=>{if(e.target.classList&&e.target.classList.contains('xdet')) xOpen=e.target.open;},true);
 function normFoods(list){
   return (Array.isArray(list)?list:[]).filter(f=>f&&typeof f.n==='string'&&f.id).map(f=>({
-    id:String(f.id),n:f.n,k:+f.k||0,p:+f.p||0,c:+f.c||0,f:+f.f||0,g:+f.g||100,u:+f.u||0}));
+    id:String(f.id),n:f.n,k:+f.k||0,p:+f.p||0,c:+f.c||0,f:+f.f||0,g:+f.g||100,u:+f.u||0,
+    list:typeof f.list==='string'?f.list:'',
+    x:(Array.isArray(f.x)?f.x:[]).filter(e=>e&&e.n&&isFinite(+e.v)&&+e.v>0).map(e=>({n:String(e.n),v:+e.v,u:TO_G[e.u]?e.u:'g'}))}));
 }
 function normProfile(p){
   const q=Object.assign(clone(DEFAULT_PROFILE),p||{});
@@ -52,20 +63,34 @@ function totals(d){
   return d.entries.reduce((a,e)=>({kcal:a.kcal+e.kcal,p:a.p+e.p,c:a.c+e.c,f:a.f+e.f}),{kcal:0,p:0,c:0,f:0});
 }
 
+function scaleExtras(food,k){return (food.x||[]).map(e=>({n:e.n,v:r3(e.v*k),u:e.u}));}
+function totalsExtra(d){
+  const map=new Map();
+  d.entries.forEach(e=>(e.x||[]).forEach(x=>{
+    const key=norm(x.n);
+    let t=map.get(key);
+    if(!t){t={n:x.n,u:x.u,g:0};map.set(key,t);}
+    t.g+=x.v*(TO_G[x.u]||1);
+  }));
+  const rank=n=>{const i=FIXED_X.findIndex(a=>norm(a[0])===norm(n));return i<0?99:i;};
+  return Array.from(map.values()).map(t=>({n:t.n,u:t.u,v:t.g/(TO_G[t.u]||1)}))
+    .sort((a,b)=>rank(a.n)-rank(b.n)||a.n.localeCompare(b.n,'it'));
+}
+
 /* ---------- the science ---------- */
 function calc(p,d,actOv){
   const act=actOv||d.act;
   const bmr=10*p.weight+6.25*p.height-5*p.age+(p.sex==='M'?5:-161);
-  const daily=bmr*(p.neat-1);
+  const base=bmr*p.neat;
   const net=(met,min)=>(met-1)*p.weight*(min/60);
   const swim=(act==='P'||act==='PA')?net(MET.swim[d.swimInt]||7,d.swimMin):0;
   const gym=(act==='A'||act==='PA')?net(MET.gym[d.gymInt]||5,d.gymMin):0;
-  const maint=bmr+daily+swim+gym;
+  const maint=base+swim+gym;
   const target=Math.round(maint*(1+p.surplus/100)/10)*10;
   const prot=Math.round(p.protein*p.weight);
   const fat=Math.round(Math.max(0.8*p.weight,target*0.25/9));
   const carb=Math.max(0,Math.round((target-prot*4-fat*9)/4));
-  return {bmr,daily,swim,gym,maint,target,surplus:target-maint,prot,fat,carb};
+  return {bmr,base,swim,gym,maint,target,surplus:target-maint,prot,fat,carb};
 }
 
 /* ---------- storage ---------- */
@@ -189,7 +214,7 @@ function renderNumbers(){
   const left=c.target-t.kcal;
   const over=t.kcal>c.target*1.05;
   const actLabel=ACTS.find(a=>a[0]===d.act)[1];
-  const parts=[['Metabolismo basale',c.bmr],['Vita di tutti i giorni',c.daily]];
+  const parts=[['Calorie base (basale '+fmt(c.bmr)+' × '+nfk.format(S.profile.neat)+')',c.base]];
   if(c.swim>0) parts.push(['Piscina',c.swim]);
   if(c.gym>0) parts.push(['Allenamento con pesi',c.gym]);
   parts.push(['Surplus per crescere',c.surplus]);
@@ -198,13 +223,20 @@ function renderNumbers(){
   const mrow=(label,eaten,tg,col)=>'<div class="macro"><span class="m-name"><i style="background:var(--'+col+')"></i>'+label+'</span>'+
     '<div class="bar" style="--bar:var(--'+col+')"><i style="width:'+Math.min(100,tg?eaten/tg*100:0)+'%"></i></div>'+
     '<span class="m-val"><b>'+fmt(eaten)+'</b> / '+fmt(tg)+' g</span></div>';
+  const xt=totalsExtra(d);
+  const isFixed=n=>FIXED_X.some(a=>norm(a[0])===norm(n));
+  const group=(title,list)=>list.length?'<div class="eyebrow sec2">'+title+'</div><ul class="breakdown">'+list.map(x=>'<li><span>'+esc(x.n)+'</span><b>'+fmtX(x.v)+' '+x.u+'</b></li>').join('')+'</ul>':'';
+  const xhtml=xt.length?'<details class="xdet"'+(xOpen?' open':'')+'><summary>Altri valori di oggi</summary>'+
+    group('Fibre, zuccheri, grassi saturi e sale',xt.filter(x=>isFixed(x.n)))+group('Vitamine e minerali',xt.filter(x=>!isFixed(x.n)))+'</details>':'';
+  const kP=4*t.p,kC=4*t.c,kF=9*t.f,kS=kP+kC+kF;
+  const split=kS>0?'<p class="split">Calorie da: proteine <b>'+fmt(kP/kS*100)+'%</b> · carboidrati <b>'+fmt(kC/kS*100)+'%</b> · grassi <b>'+fmt(kF/kS*100)+'%</b></p>':'';
   $('#numbers').innerHTML=
     '<div class="hero-label">Obiettivo del giorno <span class="pill">'+actLabel+'</span></div>'+
     '<div class="hero-num">'+fmt(c.target)+'<small>kcal</small></div>'+
     '<ul class="breakdown">'+bd+'</ul>'+
     '<div class="kcalrow"><span><b>'+fmt(t.kcal)+'</b> kcal mangiate</span><span>'+(left>=0?'ne restano <b>'+fmt(left)+'</b>':'<b>'+fmt(-left)+'</b> oltre')+'</span></div>'+
     '<div class="bar lane" style="--bar:var('+(over?'--warn':'--accent')+')"><i style="width:'+pct+'%"></i></div>'+
-    '<div class="macros">'+mrow('Proteine',t.p,c.prot,'p')+mrow('Carboidrati',t.c,c.carb,'c')+mrow('Grassi',t.f,c.fat,'f')+'</div>';
+    '<div class="macros">'+mrow('Proteine',t.p,c.prot,'p')+mrow('Carboidrati',t.c,c.carb,'c')+mrow('Grassi',t.f,c.fat,'f')+'</div>'+split+xhtml;
 }
 function renderMeals(){
   const d=getDay(S.date);
@@ -225,14 +257,34 @@ function renderMealChips(){
 /* ---------- food search and add ---------- */
 let pick=null;
 function foodById(id){return S.foods.find(f=>f.id===id)||null;}
+function listNames(){
+  const set=new Set(S.foods.map(f=>f.list).filter(Boolean));
+  return Array.from(set).sort((a,b)=>a.localeCompare(b,'it'));
+}
+function canonList(name){
+  name=String(name||'').trim().slice(0,30);
+  if(!name) return '';
+  return listNames().find(l=>norm(l)===norm(name))||name;
+}
+function renderListChips(){
+  const names=listNames(), el=$('#listChips');
+  $('#dlLists').innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join('');
+  if(S.listFilter&&names.indexOf(S.listFilter)<0) S.listFilter='';
+  if(!names.length){el.hidden=true;el.innerHTML='';return;}
+  el.hidden=false;
+  el.innerHTML=[''].concat(names).map(n=>'<button type="button" class="chip" data-lf="'+esc(n)+'" aria-pressed="'+(S.listFilter===n)+'">'+(n?esc(n):'Tutti')+'</button>').join('');
+}
 function searchFoods(q){
   q=norm(q.trim());
   const byUse=(a,b)=>(b.u||0)-(a.u||0)||a.n.localeCompare(b.n,'it');
-  if(!q) return S.foods.slice().sort(byUse).slice(0,8);
+  let pool=S.foods;
+  if(S.listFilter) pool=pool.filter(f=>f.list===S.listFilter);
+  if(!q) return pool.slice().sort(byUse).slice(0,S.listFilter?30:8);
   const words=q.split(/\s+/);
-  return S.foods.filter(f=>{const n=norm(f.n);return words.every(w=>n.indexOf(w)>=0);}).sort(byUse).slice(0,10);
+  return pool.filter(f=>{const n=norm(f.n);return words.every(w=>n.indexOf(w)>=0);}).sort(byUse).slice(0,10);
 }
 function renderResults(){
+  renderListChips();
   const q=$('#foodSearch').value.trim(), list=searchFoods(q), el=$('#foodResults');
   if(!S.foods.length){
     el.innerHTML='<p class="muted">Il tuo elenco è vuoto. Aggiungi il primo alimento con "Nuovo alimento" qui sotto, la prossima volta lo trovi qui.</p>';
@@ -242,15 +294,17 @@ function renderResults(){
     el.innerHTML='<p class="muted">Nessun alimento con questo nome. Aggiungilo con "Nuovo alimento" qui sotto.</p>';
     return;
   }
-  el.innerHTML=(q?'':'<div class="eyebrow">Usati di recente</div>')+'<ul class="list">'+list.map(f=>
+  el.innerHTML=(q?'':'<div class="eyebrow">'+(S.listFilter?esc(S.listFilter):'Usati di recente')+'</div>')+'<ul class="list">'+list.map(f=>
     '<li class="resrow"><button type="button" class="res" data-food="'+esc(f.id)+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-sub">P '+f1(f.p)+' · C '+f1(f.c)+' · G '+f1(f.f)+' ogni 100 g</span><span class="res-kcal">'+fmt(f.k)+'<small> kcal</small></span></button>'+
     '<button type="button" class="x" data-fdel="'+esc(f.id)+'" aria-label="Rimuovi '+esc(f.n)+' dall\'elenco">&times;</button></li>').join('')+'</ul>';
 }
 function updatePreview(){
-  const g=parseFloat($('#pickG').value), el=$('#pickPreview');
-  if(!pick||!(g>0)){el.textContent='';return;}
+  const g=parseFloat($('#pickG').value), el=$('#pickPreview'), dt=$('#pickDetail');
+  if(!pick||!(g>0)){el.textContent='';dt.textContent='';return;}
   const k=g/100;
   el.innerHTML='<b>'+fmt(pick.k*k)+'</b> kcal<br>P '+f1(pick.p*k)+' · C '+f1(pick.c*k)+' · G '+f1(pick.f*k);
+  const xs=scaleExtras(pick,k).map(e=>esc(e.n)+' '+fmtX(e.v)+' '+e.u).join(' · ');
+  dt.innerHTML='Calcolo: '+fmtX(g)+' ÷ 100 = <b>'+nfk.format(k)+'</b>, e moltiplico ogni valore ogni 100 g per questo numero.'+(xs?'<br>'+xs:'');
 }
 function openPick(f){
   pick=f;
@@ -263,9 +317,9 @@ function openPick(f){
 }
 function closePick(){pick=null;$('#foodPick').hidden=true;}
 let msgTimer=null;
-function flash(id,text){
+function flash(id,text,ms){
   const el=$(id); el.textContent=text;
-  clearTimeout(msgTimer); msgTimer=setTimeout(()=>{el.textContent='';},2500);
+  clearTimeout(msgTimer); msgTimer=setTimeout(()=>{el.textContent='';},ms||2500);
 }
 function addEntry(e){
   const d=editDay(S.date);
@@ -390,6 +444,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.nav){S.date=addDays(S.date,+t.dataset.nav);renderHeader();renderDayCard();renderNumbers();renderMeals();return;}
   if(t.dataset.act){const d=editDay(S.date);d.act=t.dataset.act;queueSave('d-'+S.date);renderDayCard();renderNumbers();return;}
   if(t.dataset.meal){S.meal=t.dataset.meal;renderMealChips();return;}
+  if(t.dataset.lf!==undefined){S.listFilter=t.dataset.lf;renderResults();return;}
+  if(t.dataset.xdel!==undefined){t.closest('.xrow').remove();return;}
   if(t.dataset.food!==undefined){const f=foodById(t.dataset.food);if(f) openPick(f);return;}
   if(t.dataset.fdel){
     S.foods=S.foods.filter(x=>x.id!==t.dataset.fdel);
@@ -444,32 +500,87 @@ $('#pickAdd').addEventListener('click',()=>{
   if(!pick||!(g>0)){$('#pickG').setAttribute('aria-invalid','true');return;}
   $('#pickG').setAttribute('aria-invalid','false');
   const k=g/100;
-  addEntry({meal:S.meal,name:pick.n,g:g,kcal:r1(pick.k*k),p:r1(pick.p*k),c:r1(pick.c*k),f:r1(pick.f*k)});
+  addEntry({meal:S.meal,name:pick.n,g:g,kcal:r1(pick.k*k),p:r1(pick.p*k),c:r1(pick.c*k),f:r1(pick.f*k),x:scaleExtras(pick,k)});
   pick.u=Date.now();
   queueSave('foods');
   closePick();
   $('#foodSearch').value='';
   renderResults();
 });
+function addExtraRow(n,v,u){
+  const row=document.createElement('div');
+  row.className='xrow';
+  row.innerHTML='<input type="text" list="dlNutrients" data-xn maxlength="40" placeholder="Es. Vitamina C" aria-label="Nome del valore">'+
+    '<input type="number" inputmode="decimal" min="0" step="any" data-xv placeholder="0" aria-label="Quantità ogni 100 g">'+
+    '<select data-xu aria-label="Unità">'+['g','mg','µg'].map(x=>'<option>'+x+'</option>').join('')+'</select>'+
+    '<button type="button" class="x" data-xdel aria-label="Togli riga">&times;</button>';
+  row.querySelector('[data-xn]').value=n||'';
+  row.querySelector('[data-xv]').value=(v===undefined||v===null)?'':v;
+  row.querySelector('[data-xu]').value=u||'mg';
+  $('#cExtra').appendChild(row);
+  return row;
+}
+function resetForm(){
+  S.editId=null;
+  ['#cName','#cList','#cG','#cK','#cP','#cC','#cF','#cFib','#cSug','#cSat','#cSalt'].forEach(id=>{$(id).value='';});
+  $('#cExtra').innerHTML='';
+  $('#newFoodTitle').textContent='Nuovo alimento';
+  $('#cAdd').textContent='Salva nei miei alimenti';
+  $('#cCancelEdit').hidden=true;
+}
+function startEdit(food){
+  resetForm();
+  S.editId=food.id;
+  $('#newFood').open=true;
+  $('#newFoodTitle').textContent='Modifica alimento';
+  $('#cAdd').textContent='Salva modifiche';
+  $('#cCancelEdit').hidden=false;
+  $('#cName').value=food.n; $('#cList').value=food.list||''; $('#cG').value=food.g||'';
+  $('#cK').value=food.k; $('#cP').value=food.p; $('#cC').value=food.c; $('#cF').value=food.f;
+  (food.x||[]).forEach(e=>{
+    const fx=FIXED_X.find(a=>norm(a[0])===norm(e.n)&&e.u==='g');
+    if(fx) $(fx[1]).value=e.v; else addExtraRow(e.n,e.v,e.u);
+  });
+  $('#newFood').scrollIntoView({block:'start'});
+}
+function readExtras(){
+  const map=new Map();
+  const add=(n,v,u)=>{n=String(n||'').trim();if(n&&isFinite(v)&&v>0) map.set(norm(n)+'|'+u,{n:n,v:r3(v),u:u});};
+  FIXED_X.forEach(a=>add(a[0],parseNum($(a[1]).value),'g'));
+  $$('#cExtra .xrow').forEach(r=>add(r.querySelector('[data-xn]').value,parseNum(r.querySelector('[data-xv]').value),r.querySelector('[data-xu]').value));
+  return Array.from(map.values());
+}
+$('#cAddRow').addEventListener('click',()=>{const r=addExtraRow('','','mg');r.querySelector('[data-xn]').focus();});
+$('#cCancelEdit').addEventListener('click',resetForm);
+$('#pickEdit').addEventListener('click',()=>{if(pick){const f=pick;closePick();startEdit(f);}});
+$('#cExtra').addEventListener('change',e=>{
+  const el=e.target;
+  if(el.matches('[data-xn]')){const u=DEFAULT_U[norm(el.value.trim())];if(u) el.closest('.xrow').querySelector('[data-xu]').value=u;}
+});
 $('#cAdd').addEventListener('click',()=>{
-  const num=id=>{const v=parseFloat(String($(id).value).replace(',','.'));return isFinite(v)&&v>=0?v:0;};
+  const num=id=>{const v=parseNum($(id).value);return v>=0?v:0;};
   const name=$('#cName').value.trim();
   const p=num('#cP'),c=num('#cC'),f=num('#cF');
   let k=num('#cK');
+  const kGiven=k>0;
   if(!name){flash('#addMsg','Scrivi il nome dell\'alimento.');return;}
-  if(!k) k=4*p+4*c+9*f;
+  if(!kGiven) k=4*p+4*c+9*f;
   if(!(k>0)){flash('#addMsg','Inserisci almeno le calorie o i macro.');return;}
-  const g=num('#cG')||100;
   const key=norm(name);
-  let food=S.foods.find(x=>norm(x.n)===key);
+  let food=S.editId?foodById(S.editId):S.foods.find(x=>norm(x.n)===key);
+  const clash=S.foods.find(x=>norm(x.n)===key&&(!food||x.id!==food.id));
+  if(clash){flash('#addMsg','Esiste già un alimento con questo nome.');return;}
   if(!food){food={id:uid()};S.foods.push(food);}
-  Object.assign(food,{n:name,k:r1(k),p:r1(p),c:r1(c),f:r1(f),g:g,u:Date.now()});
+  const est=4*p+4*c+9*f;
+  const warn=kGiven&&Math.abs(k-est)>Math.max(30,0.2*k)?' Controlla i valori: con 4 kcal per g di proteine e carboidrati e 9 per i grassi le calorie sarebbero circa '+fmt(est)+'.':'';
+  Object.assign(food,{n:name,list:canonList($('#cList').value),k:r1(k),p:r1(p),c:r1(c),f:r1(f),g:num('#cG')||100,u:Date.now(),x:readExtras()});
   queueSave('foods');
-  ['#cName','#cK','#cP','#cC','#cF','#cG'].forEach(id=>{$(id).value='';});
+  resetForm();
+  S.listFilter='';
   $('#foodSearch').value='';
   renderResults();
   openPick(food);
-  flash('#addMsg','Salvato nei tuoi alimenti.');
+  flash('#addMsg','Salvato nei tuoi alimenti.'+warn,warn?9000:2500);
 });
 $('#weightForm').addEventListener('submit',e=>{
   e.preventDefault();
