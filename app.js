@@ -599,6 +599,107 @@ $('#weightForm').addEventListener('submit',e=>{
   flash('#wMsg','Salvato.');
 });
 
+/* ---------- backup: esporta / importa ---------- */
+const BK_LAST='yourfood.lastbackup', BK_PREV='yourfood.prev';
+let bkPending=null;
+function bkData(){
+  return {app:'yourfood',version:1,exported:new Date().toISOString(),profile:S.profile,days:S.days,weights:S.weights,foods:S.foods};
+}
+function bkText(){return JSON.stringify(bkData(),null,1);}
+function bkStamp(){try{localStorage.setItem(BK_LAST,new Date().toISOString());}catch(e){} bkShowLast();}
+function bkShowLast(){
+  let v=null;try{v=localStorage.getItem(BK_LAST);}catch(e){}
+  const el=$('#bkLast'); if(!el) return;
+  el.textContent=v?'Ultimo backup su questo dispositivo: '+new Date(v).toLocaleString('it-IT',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'Non hai ancora fatto nessun backup su questo dispositivo.';
+}
+function bkMsg(text,bad){
+  const el=$('#bkMsg'); el.textContent=text; el.style.color=bad?'var(--bad)':'';
+  clearTimeout(msgTimer); msgTimer=setTimeout(()=>{el.textContent='';},4000);
+}
+function bkDownload(){
+  try{
+    const blob=new Blob([bkText()],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='yourfood-backup-'+TODAY+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    bkStamp(); bkMsg('File scaricato. Se non compare, usa "Copia testo".');
+  }catch(e){bkMsg('Download non riuscito. Usa "Copia testo".',true);}
+}
+async function bkCopy(){
+  const text=bkText();
+  try{
+    await navigator.clipboard.writeText(text);
+    bkStamp(); bkMsg('Copiato. Incollalo in un posto sicuro (email, note, messaggi a te stesso).');
+  }catch(e){
+    const ta=$('#bkText'); ta.value=text; ta.focus(); ta.select();
+    bkStamp(); bkMsg('Testo messo nel riquadro qui sotto: selezionalo e copialo a mano.');
+  }
+}
+/* Controlla il testo e lo trasforma in dati puliti; null se non valido. */
+function bkParse(text){
+  let o; try{o=JSON.parse(text);}catch(e){return null;}
+  if(!o||typeof o!=='object') return null;
+  const days={};
+  if(o.days&&typeof o.days==='object'){
+    Object.keys(o.days).forEach(k=>{
+      const d=o.days[k];
+      if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&d&&typeof d==='object'&&Array.isArray(d.entries)) days[k]=d;
+    });
+  }
+  const weights=(Array.isArray(o.weights)?o.weights:[]).filter(w=>w&&/^\d{4}-\d{2}-\d{2}$/.test(w.d)&&isFinite(+w.kg)&&+w.kg>0).map(w=>({d:w.d,kg:+w.kg}));
+  const foods=normFoods(o.foods);
+  const profile=o.profile&&typeof o.profile==='object'?o.profile:null;
+  if(!profile&&!Object.keys(days).length&&!weights.length&&!foods.length) return null;
+  return {profile,days,weights,foods};
+}
+function bkCheck(){
+  const text=$('#bkText').value.trim();
+  if(!text){bkMsg('Incolla prima il backup o scegli un file.',true);return;}
+  const d=bkParse(text);
+  if(!d){bkPending=null;$('#bkPreview').innerHTML='';bkMsg('Questo testo non è un backup di YourFood.',true);return;}
+  bkPending=d;
+  $('#bkPreview').innerHTML='<div class="note"><span>Nel backup: <b>'+Object.keys(d.days).length+'</b> giorni, <b>'+d.foods.length+'</b> alimenti, <b>'+d.weights.length+'</b> pesi'+(d.profile?', profilo':'')+'.</span></div>'+
+    '<div class="form-actions"><button class="btn" type="button" id="bkMerge">Unisci ai dati attuali</button><button class="btn alt" type="button" id="bkReplace">Sostituisci tutto</button><button class="link" type="button" id="bkCancel">Annulla</button></div>'+
+    '<p class="hint">Unisci tiene quello che hai già e aggiunge o aggiorna ciò che c\'è nel backup. Sostituisci cancella i dati attuali.</p>';
+}
+function bkApply(mode){
+  const d=bkPending; if(!d) return;
+  try{localStorage.setItem(BK_PREV,JSON.stringify({profile:S.profile,days:S.days,weights:S.weights,foods:S.foods}));}catch(e){}
+  if(mode==='replace'){
+    S.days={}; S.weights=[]; S.foods=[];
+  }
+  if(d.profile) S.profile=normProfile(Object.assign({},mode==='merge'?S.profile:{},d.profile));
+  Object.keys(d.days).forEach(k=>{S.days[k]=d.days[k];});
+  const wm={}; S.weights.forEach(w=>{wm[w.d]=w;}); d.weights.forEach(w=>{wm[w.d]=w;});
+  S.weights=Object.keys(wm).sort().map(k=>wm[k]);
+  const fm={}; S.foods.forEach(f=>{fm[f.id]=f;}); d.foods.forEach(f=>{fm[f.id]=f;});
+  S.foods=Object.keys(fm).map(k=>fm[k]);
+  lsWrite();
+  ['profile','weights','foods'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);
+  bkPending=null; $('#bkPreview').innerHTML=''; $('#bkText').value='';
+  renderAll();
+  bkMsg(mode==='replace'?'Dati sostituiti dal backup.':'Backup unito ai dati attuali.');
+}
+document.addEventListener('click',e=>{
+  const id=e.target.closest('button')&&e.target.closest('button').id;
+  if(id==='bkFile') bkDownload();
+  else if(id==='bkCopy') bkCopy();
+  else if(id==='bkCheck') bkCheck();
+  else if(id==='bkMerge') bkApply('merge');
+  else if(id==='bkReplace') bkApply('replace');
+  else if(id==='bkCancel'){bkPending=null;$('#bkPreview').innerHTML='';}
+});
+document.addEventListener('change',e=>{
+  if(e.target.id!=='bkPick') return;
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{$('#bkText').value=String(r.result||'');e.target.value='';bkCheck();};
+  r.onerror=()=>bkMsg('Non riesco a leggere il file.',true);
+  r.readAsText(f);
+});
+
 /* ---------- boot ---------- */
 async function boot(){
   const main=$('main');
@@ -637,6 +738,7 @@ async function boot(){
   main.inert=false;
   $('#app').setAttribute('aria-busy','false');
   renderAll();
+  bkShowLast();
   if(!S.foods.length) $('#newFood').open=true;
   setStatus('ready');
   if(migrate){['profile','weights','foods'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);}
