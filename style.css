@@ -163,3 +163,10 @@ nav.tabs svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1
 .sec2{margin-top:12px;margin-bottom:0}
 .split{margin:14px 0 0;font-size:14px;color:var(--ink-2)}
 .split b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* backup */
+.btn.alt{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.filebtn{display:flex;align-items:center;justify-content:center;width:auto;flex:1 1 200px;cursor:pointer}
+.sub{font-family:var(--display);font-weight:600;font-size:18px;margin:18px 0 8px}
+textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0;resize:vertical}
+#bkPreview .note{margin-top:12px}

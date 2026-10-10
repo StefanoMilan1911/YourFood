@@ -138,6 +138,24 @@
         <h2 class="h">Fabbisogno per tipo di giorno</h2>
         <div class="scroll" id="targetsTable"></div>
       </div>
+      
+      <div class="card" id="backupCard">
+        <h2 class="h">Backup dei dati</h2>
+        <p class="hint" style="margin-top:0">Salva una copia di profilo, alimenti, giorni e pesi, e tienila fuori dal telefono (email, Drive, messaggi a te stesso).</p>
+        <div class="form-actions">
+          <button class="btn" type="button" id="bkFile">Scarica file</button>
+          <button class="btn alt" type="button" id="bkCopy">Copia testo</button>
+        </div>
+        <p class="hint" id="bkLast"></p>
+        <h3 class="sub">Ripristina</h3>
+        <label class="field"><span>Incolla qui il backup</span><textarea id="bkText" rows="4" spellcheck="false"></textarea></label>
+        <div class="form-actions">
+          <label class="btn alt filebtn">Scegli file<input id="bkPick" type="file" accept=".json,application/json" hidden></label>
+          <button class="btn" type="button" id="bkCheck">Controlla</button>
+        </div>
+        <div id="bkPreview"></div>
+        <p class="msg" id="bkMsg" role="status"></p>
+      </div>
 
       <div class="card">
         <h2 class="h">Come calcolo i numeri</h2>
