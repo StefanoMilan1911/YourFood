@@ -170,3 +170,22 @@ textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface-2
 .xi .bar{grid-column:1/-1}
 .bar.thin{height:6px}
 .row-kcal small{font-family:var(--body);font-size:12px;color:var(--ink-2);font-weight:500}
+
+/* resoconto della settimana */
+.wkhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.wkhead .rng{font-family:var(--display);font-weight:600;font-size:22px;line-height:1.15;text-align:center}
+.icon-btn:disabled{opacity:.35;cursor:default}
+.stat{background:var(--surface-2);border-radius:12px;padding:12px;min-width:0}
+.stat .eyebrow{margin-bottom:4px}
+.stat .big{font-size:32px}
+.stat .sub2{font-size:13px;color:var(--ink-2);margin-top:2px}
+b[data-t="warn"]{color:var(--warn)}
+b[data-t="ok"]{color:var(--ok)}
+.wk{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.wkrow{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:2px 10px;align-items:center;font-size:14px}
+.wkrow .wkd{font-weight:600}
+.wkrow b{font-family:var(--display);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.wkrow .sub2{grid-column:2/-1;font-size:12px;color:var(--ink-2)}
+.wkrow.off{color:var(--ink-2)}
+.wkrow.off span:nth-child(2){grid-column:2/-1}
+.tone[data-tone="info"]{background:var(--surface-2)}

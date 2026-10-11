@@ -40,7 +40,7 @@ const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,p
 /* ---------- state ---------- */
 const TODAY=iso(new Date());
 function defaultMeal(){const h=new Date().getHours();return h<10?'colazione':h<15?'pranzo':h<18?'spuntino':'cena';}
-const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],dishes:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal(),wUnit:'glass',
+const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],dishes:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal(),wUnit:'glass',weekOff:0,
   sub:{oggi:'riepilogo',obiettivi:'dati',peso:'registra'},planNote:null,dishFor:null,dishSel:null,dishConfirm:false};
 const pl=(n,a,b)=>n+' '+(n===1?a:b);
 const wd=date=>(parse(date).getDay()+6)%7;
@@ -519,6 +519,86 @@ function renderWeight(){
   wl.innerHTML='<h2 class="h">Ultime pesate</h2><ul class="list">'+rows+'</ul>';
 }
 
+/* ---------- rendering: Peso, resoconto della settimana ---------- */
+const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
+function weekData(off){
+  const end=addDays(TODAY,off*7), out=[];
+  for(let i=6;i>=0;i--){
+    const date=addDays(end,-i), d=getDay(date);
+    out.push({date,logged:d.entries.length>0,t:totals(d),c:calc(S.profile,d),wGoal:waterGoal(S.profile,d),wTot:waterTotal(d),wLogged:(d.water||[]).length>0});
+  }
+  return out;
+}
+function weekAdvice(n,a,wd){
+  if(n<3) return {tone:'info',text:'Servono almeno 3 giorni con i pasti registrati per un quadro attendibile.'};
+  const parts=[]; let tone='ok';
+  const dk=a.k-a.kt, pk=a.kt?dk/a.kt*100:0;
+  if(pk<-10){tone='warn';parts.push('In media sei stato circa '+fmt(-dk)+' kcal sotto l\'obiettivo. Per crescere servono più calorie, soprattutto nei giorni di sport.');}
+  else if(pk>10){tone='warn';parts.push('In media sei stato circa '+fmt(dk)+' kcal sopra l\'obiettivo. Controlla che il peso non salga troppo in fretta.');}
+  else parts.push('Le calorie sono in linea con l\'obiettivo.');
+  if(a.p<0.9*a.pt){tone='warn';parts.push('Le proteine sono sotto: aggiungi una fonte proteica a ogni pasto.');}
+  else parts.push('Le proteine sono a posto.');
+  if(wd&&wd.span>=4){
+    const pw=wd.delta/wd.first*100*7/wd.span;
+    if(pw<0){tone='warn';parts.push('Il peso è sceso: se vuoi crescere serve più cibo.');}
+    else if(pw>0.5){tone='warn';parts.push('Il peso sale in fretta: una parte potrebbe essere grasso.');}
+    else if(pw>=0.1) parts.push('Il peso cresce con un buon ritmo.');
+    else parts.push('Il peso è quasi fermo.');
+  }
+  return {tone,text:parts.join(' ')};
+}
+function renderWeek(){
+  const days=weekData(S.weekOff), logged=days.filter(x=>x.logged), n=logged.length;
+  const avg=(arr,f)=>arr.length?arr.reduce((s,x)=>s+f(x),0)/arr.length:0;
+  const sd=(d,o)=>parse(d).toLocaleDateString('it-IT',o);
+  const rng=sd(days[0].date,{day:'numeric'})+' – '+sd(days[6].date,{day:'numeric',month:'short'});
+  const a={k:avg(logged,x=>x.t.kcal),kt:avg(logged,x=>x.c.target),p:avg(logged,x=>x.t.p),pt:avg(logged,x=>x.c.prot)};
+  const wl=days.filter(x=>x.wLogged), aw=avg(wl,x=>x.wTot), awg=avg(wl,x=>x.wGoal);
+  const tn=(cond)=>cond?'warn':'ok';
+  const stat=(label,val,unit,sub)=>'<div class="stat"><div class="eyebrow">'+label+'</div><div class="big">'+val+'<small>'+unit+'</small></div><div class="sub2">'+sub+'</div></div>';
+  const diffTxt=(d,u,tol,tgt)=>{
+    if(!n&&!u) return '';
+    const warn=Math.abs(d)>tol*tgt;
+    return '<b data-t="'+tn(warn)+'">'+(Math.abs(d)<tol*tgt/2?'in linea':fmtDiff(d))+'</b>';
+  };
+  const fmtDiff=d=>(d<0?'−':'+')+fmt(Math.abs(d));
+  const kSub=n?diffTxt(a.k-a.kt,true,0.1,a.kt)+' · obiettivo '+fmt(a.kt):'—';
+  const pSub=n?(a.p<0.9*a.pt?'<b data-t="warn">sotto</b>':'<b data-t="ok">a posto</b>')+' · obiettivo '+fmt(a.pt)+' g':'—';
+  const wSub=wl.length?(aw<0.9*awg?'<b data-t="warn">sotto</b>':'<b data-t="ok">a posto</b>')+' · consigliata '+nfL.format(awg/1000)+' L':'—';
+  const tiles='<div class="grid2">'+
+    stat('Calorie al giorno',n?fmt(a.k):'—','kcal',kSub)+
+    stat('Proteine al giorno',n?fmt(a.p):'—','g',pSub)+
+    stat('Acqua al giorno',wl.length?nfL.format(aw/1000):'—','L',wSub)+
+    stat('Giorni registrati',n,'su 7','con almeno un pasto')+'</div>';
+  const wts=S.weights.filter(w=>w.d>=days[0].date&&w.d<=days[6].date);
+  let wd=null, wtxt;
+  if(wts.length>=2){
+    const f=wts[0], l=wts[wts.length-1], delta=r1(l.kg-f.kg);
+    wd={delta:l.kg-f.kg,first:f.kg,span:daysBetween(f.d,l.d)};
+    const w1=v=>v.toFixed(1).replace('.',',');
+    wtxt='Peso nella settimana: <b>'+w1(f.kg)+' → '+w1(l.kg)+' kg</b> ('+(delta>=0?'+':'−')+w1(Math.abs(delta))+' kg)';
+  }else if(wts.length===1) wtxt='Una sola pesata questa settimana: <b>'+f1(wts[0].kg)+' kg</b>. Ne servono due per vedere come cambia.';
+  else wtxt='Nessuna pesata in questa settimana.';
+  const ad=weekAdvice(n,a,wd);
+  const rows=days.map(x=>{
+    const dt=parse(x.date), lab=x.date===TODAY?'Oggi':cap(dt.toLocaleDateString('it-IT',{weekday:'short'}))+' '+dt.getDate();
+    const wtxt2=x.wLogged?' · Acqua '+nfL.format(x.wTot/1000)+' L':'';
+    if(!x.logged) return '<li class="wkrow off"><span class="wkd">'+lab+'</span><span>Niente registrato</span>'+(wtxt2?'<span class="sub2">'+wtxt2.slice(3)+'</span>':'')+'</li>';
+    const pct=x.c.target?x.t.kcal/x.c.target*100:0;
+    const col=pct>=90&&pct<=110?'--ok':'--warn';
+    return '<li class="wkrow"><span class="wkd">'+lab+'</span><div class="bar" style="--bar:var('+col+')"><i style="width:'+Math.min(100,pct)+'%"></i></div><b>'+fmt(x.t.kcal)+'</b>'+
+      '<span class="sub2">Obiettivo '+fmt(x.c.target)+' kcal · Proteine '+fmt(x.t.p)+' / '+fmt(x.c.prot)+' g'+wtxt2+'</span></li>';
+  }).join('');
+  $('#weekCard').innerHTML=
+    '<div class="wkhead"><button class="icon-btn" type="button" data-wk="-1" aria-label="Settimana precedente">&#8249;</button>'+
+    '<div class="rng"><div class="eyebrow" style="margin:0">'+(S.weekOff===0?'Ultimi 7 giorni':S.weekOff===-1?'Settimana scorsa':pl(-S.weekOff,'settimana fa','settimane fa'))+'</div>'+rng+'</div>'+
+    '<button class="icon-btn" type="button" data-wk="1" aria-label="Settimana successiva"'+(S.weekOff>=0?' disabled':'')+'>&#8250;</button></div>'+
+    tiles+'<div class="tone" data-tone="'+(ad.tone==='warn'?'warn':ad.tone==='ok'?'ok':'info')+'">'+esc(ad.text)+'</div>'+
+    '<p class="hint" style="margin-top:12px">'+wtxt+'</p>'+
+    '<div class="eyebrow sec">Giorno per giorno</div><ul class="wk">'+rows+'</ul>'+
+    '<p class="hint">Le medie contano solo i giorni con almeno un pasto registrato. Barra verde: calorie vicine all\'obiettivo del giorno.</p>';
+}
+
 /* ---------- navigation ---------- */
 function showSub(tab,name){
   S.sub[tab]=name;
@@ -529,18 +609,19 @@ function showSub(tab,name){
     if(on&&b.scrollIntoView){try{b.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}}
   });
   if(tab==='oggi') $('#miniNumbers').hidden=(name==='riepilogo');
+  if(tab==='peso'&&name==='settimana') renderWeek();
   window.scrollTo(0,0);
 }
 function showTab(name){
   ['oggi','obiettivi','peso'].forEach(t=>{$('#tab-'+t).hidden=(t!==name);});
   $$('nav.tabs [data-tab]').forEach(b=>{if(b.dataset.tab===name) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');});
   if(name==='obiettivi'){syncProfileForm();renderWaterTable();}
-  if(name==='peso') renderWeight();
+  if(name==='peso'){renderWeight();renderWeek();}
   showSub(name,S.sub[name]);
 }
 function renderAll(){
   renderHeader(); renderDayCard(); renderNumbers(); renderMeals(); renderMealChips();
-  renderResults(); renderDishes(); renderWaterForm(); syncProfileForm(); renderWaterTable(); renderWeight();
+  renderResults(); renderDishes(); renderWaterForm(); syncProfileForm(); renderWaterTable(); renderWeight(); renderWeek();
 }
 function onProfileChanged(){
   S.profile.touched=true;
@@ -558,6 +639,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.subGo){showSub('oggi',t.dataset.subGo);return;}
   if(t.dataset.nav){S.date=addDays(S.date,+t.dataset.nav);S.planNote=null;S.dishFor=null;renderHeader();renderDayCard();renderNumbers();renderMeals();return;}
   if(t.dataset.act){setDayAct(S.date,t.dataset.act);renderDayCard();renderNumbers();renderWaterTable();syncProfileForm();return;}
+  if(t.dataset.wk){S.weekOff=Math.min(0,S.weekOff+(+t.dataset.wk));renderWeek();return;}
   if(t.dataset.planUndo!==undefined){planOnlyToday();return;}
   if(t.dataset.wunit){S.wUnit=t.dataset.wunit;$('#wq').value=WUNITS[S.wUnit].def;renderWaterForm();return;}
   if(t.dataset.wquick){$('#wq').value=t.dataset.wquick;updateWaterPreview();return;}
