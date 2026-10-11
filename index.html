@@ -34,6 +34,7 @@
         <button type="button" class="chip" data-sub="pasti" aria-pressed="false">Pasti</button>
         <button type="button" class="chip" data-sub="aggiungi" aria-pressed="false">Aggiungi</button>
         <button type="button" class="chip" data-sub="piatti" aria-pressed="false">Piatti</button>
+        <button type="button" class="chip" data-sub="acqua" aria-pressed="false">Acqua</button>
         <button type="button" class="chip" data-sub="attivita" aria-pressed="false">Attività</button>
       </div>
 
@@ -132,6 +133,22 @@
         <p class="msg" id="dishMsg" role="status"></p>
       </div>
 
+      <!-- Acqua -->
+      <div class="card" id="waterCard" data-sec="acqua" hidden>
+        <h2 class="h">Acqua</h2>
+        <div id="waterHero"></div>
+        <div class="eyebrow sec">Hai bevuto</div>
+        <div class="chips" id="waterUnits" role="group" aria-label="Misura"></div>
+        <div class="pick-row" style="margin-top:12px">
+          <label class="field"><span id="wqLabel">Quanti bicchieri</span><input id="wq" type="number" inputmode="decimal" min="0" step="0.5" value="1"></label>
+          <div class="preview" id="wqPreview"></div>
+        </div>
+        <div class="chips" id="wqQuick" style="margin-top:12px" hidden></div>
+        <button class="btn" type="button" id="wAdd" style="margin-top:12px">Aggiungi</button>
+        <p class="msg" id="waterMsg" role="status"></p>
+        <div id="waterList"></div>
+      </div>
+
       <!-- Attività del giorno -->
       <div class="card" id="dayCard" data-sec="attivita" hidden></div>
     </section>
@@ -141,7 +158,7 @@
       <div class="subnav" role="group" aria-label="Sezioni degli obiettivi">
         <button type="button" class="chip" data-sub="dati" aria-pressed="true">I tuoi dati</button>
         <button type="button" class="chip" data-sub="settimana" aria-pressed="false">Settimana</button>
-        <button type="button" class="chip" data-sub="fabbisogno" aria-pressed="false">Fabbisogno</button>
+        <button type="button" class="chip" data-sub="acqua" aria-pressed="false">Acqua</button>
         <button type="button" class="chip" data-sub="backup" aria-pressed="false">Backup</button>
       </div>
 
@@ -193,9 +210,15 @@
         <p class="hint">Ogni giorno nuovo parte da questa settimana. Se in Oggi → Attività cambi la giornata di oggi o dei prossimi giorni, anche il piano di quel giorno della settimana si aggiorna da solo, e viceversa.</p>
       </div>
 
-      <div class="card" data-sec="fabbisogno" hidden>
-        <h2 class="h">Fabbisogno per tipo di giorno</h2>
-        <div class="scroll" id="targetsTable"></div>
+      <div class="card" data-sec="acqua" hidden>
+        <h2 class="h">Acqua consigliata</h2>
+        <div class="scroll" id="waterTable"></div>
+        <p class="hint">Dipende dal tuo peso e da quanto ti alleni: nei giorni di sport ne serve di più. In Oggi → Acqua segni quella che bevi.</p>
+        <div class="eyebrow sec">Le tue misure</div>
+        <div class="grid2" id="waterSet">
+          <label class="field"><span>Bicchiere (ml)</span><input id="pGlass" type="number" inputmode="numeric" min="50" max="1000" step="10" data-p="glassMl"></label>
+          <label class="field"><span>Borraccia (ml)</span><input id="pBottle" type="number" inputmode="numeric" min="100" max="3000" step="50" data-p="bottleMl"></label>
+        </div>
       </div>
 
       <div class="card" id="backupCard" data-sec="backup" hidden>

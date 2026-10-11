@@ -20,6 +20,8 @@ const norm=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 const r1=n=>Math.round(n*10)/10;
 const r3=n=>Math.round(n*1000)/1000;
 const nfk=new Intl.NumberFormat('it-IT',{maximumFractionDigits:3});
+const nfL=new Intl.NumberFormat('it-IT',{minimumFractionDigits:1,maximumFractionDigits:2});
+const fmtL=ml=>nfL.format(ml/1000)+' L';
 const fmtX=v=>new Intl.NumberFormat('it-IT',{maximumFractionDigits:v>=100?0:v>=10?1:2}).format(v);
 const parseNum=v=>{const n=parseFloat(String(v).replace(',','.'));return isFinite(n)?n:NaN;};
 
@@ -33,12 +35,12 @@ const FIXED_X=[['Fibre','#cFib'],['Zuccheri','#cSug'],['Grassi saturi','#cSat'],
 const DEFAULT_U={'vitamina a':'µg','vitamina b12':'µg','vitamina d':'µg','vitamina k':'µg','vitamina b9':'µg','folati':'µg','biotina':'µg','selenio':'µg','iodio':'µg'};
 const WEEK=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
 const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,protein:1.8,
-  plan:['R','R','R','R','R','R','R'],swimMin:60,swimInt:'mid',gymMin:60,gymInt:'mid',touched:false};
+  plan:['R','R','R','R','R','R','R'],swimMin:60,swimInt:'mid',gymMin:60,gymInt:'mid',glassMl:200,bottleMl:500,touched:false};
 
 /* ---------- state ---------- */
 const TODAY=iso(new Date());
 function defaultMeal(){const h=new Date().getHours();return h<10?'colazione':h<15?'pranzo':h<18?'spuntino':'cena';}
-const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],dishes:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal(),
+const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],dishes:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal(),wUnit:'glass',
   sub:{oggi:'riepilogo',obiettivi:'dati',peso:'registra'},planNote:null,dishFor:null,dishSel:null,dishConfirm:false};
 const pl=(n,a,b)=>n+' '+(n===1?a:b);
 const wd=date=>(parse(date).getDay()+6)%7;
@@ -111,6 +113,59 @@ function calc(p,d,actOv){
   const fat=Math.round(Math.max(0.8*p.weight,target*0.25/9));
   const carb=Math.max(0,Math.round((target-prot*4-fat*9)/4));
   return {bmr,base,swim,gym,maint,target,surplus:target-maint,prot,fat,carb};
+}
+
+/* ---------- acqua consigliata ---------- */
+/* Acqua da bere (senza quella degli alimenti): circa 30 ml per kg di peso, piu' 400, 600 o 800 ml per ogni ora di sport
+   secondo l'intensita'. Arrotondata a 50 ml. Stima, non una regola. */
+const WATER_H={low:400,mid:600,high:800};
+function waterGoal(p,d,actOv){
+  const act=actOv||d.act;
+  const sw=(act==='P'||act==='PA')?(WATER_H[d.swimInt]||600)*(d.swimMin/60):0;
+  const gy=(act==='A'||act==='PA')?(WATER_H[d.gymInt]||600)*(d.gymMin/60):0;
+  return Math.round((30*p.weight+sw+gy)/50)*50;
+}
+function waterTotal(d){return (d.water||[]).reduce((a,w)=>a+(+w.ml||0),0);}
+
+/* ---------- valori di riferimento giornalieri (LARN, adulti) ---------- */
+/* type 'min' = quota da raggiungere, 'max' = tetto da non superare. m/f = uomo/donna. */
+const REF=[
+  {n:['fibre','fibra','fibre alimentari'],v:25,u:'g',type:'min'},
+  {n:['zuccheri','zucchero','zuccheri semplici'],pctE:15,per:4,u:'g',type:'max'},
+  {n:['grassi saturi','saturi','acidi grassi saturi'],pctE:10,per:9,u:'g',type:'max'},
+  {n:['sale'],v:5,u:'g',type:'max'},
+  {n:['sodio'],v:2000,u:'mg',type:'max'},
+  {n:['vitamina a','retinolo'],m:750,f:650,u:'µg',type:'min'},
+  {n:['vitamina b1','tiamina','vitamina b1 (tiamina)'],perKcal:0.4,u:'mg',type:'min'},
+  {n:['vitamina b2','riboflavina','vitamina b2 (riboflavina)'],v:1.6,u:'mg',type:'min'},
+  {n:['vitamina b3','niacina','vitamina b3 (niacina)','vitamina pp'],v:18,u:'mg',type:'min'},
+  {n:['vitamina b6','piridossina'],m:1.6,f:1.4,u:'mg',type:'min'},
+  {n:['vitamina b9','folati','folato','acido folico'],v:330,u:'µg',type:'min'},
+  {n:['vitamina b12','cobalamina'],v:4,u:'µg',type:'min'},
+  {n:['vitamina c','acido ascorbico'],m:105,f:85,u:'mg',type:'min'},
+  {n:['vitamina d','colecalciferolo'],v:15,u:'µg',type:'min'},
+  {n:['vitamina e','tocoferolo'],m:13,f:12,u:'mg',type:'min'},
+  {n:['vitamina k'],m:135,f:125,u:'µg',type:'min'},
+  {n:['calcio'],v:950,u:'mg',type:'min'},
+  {n:['ferro'],m:10,f:18,u:'mg',type:'min'},
+  {n:['magnesio'],v:350,u:'mg',type:'min'},
+  {n:['fosforo'],v:550,u:'mg',type:'min'},
+  {n:['potassio'],v:4500,u:'mg',type:'min'},
+  {n:['zinco'],m:12,f:9,u:'mg',type:'min'},
+  {n:['selenio'],v:55,u:'µg',type:'min'},
+  {n:['iodio'],v:150,u:'µg',type:'min'}
+];
+const REF_MAP=new Map();
+REF.forEach(r=>r.n.forEach(n=>REF_MAP.set(norm(n),r)));
+/* Ritorna {g: riferimento in grammi, type} oppure null se non c'e' un riferimento per quel nome. */
+function refFor(name,p,target){
+  const r=REF_MAP.get(norm(String(name).trim()));
+  if(!r) return null;
+  let v=r.v;
+  if(r.m!==undefined) v=p.sex==='F'?r.f:r.m;
+  if(r.perKcal) v=r.perKcal*target/1000;
+  if(r.pctE) v=r.pctE/100*target/r.per;
+  return {g:v*TO_G[r.u],type:r.type};
 }
 
 /* ---------- storage ---------- */
@@ -243,16 +298,30 @@ function renderNumbers(){
     '<span class="m-val"><b>'+fmt(eaten)+'</b> / '+fmt(tg)+' g</span></div>';
   const xt=totalsExtra(d);
   const isFixed=n=>FIXED_X.some(a=>norm(a[0])===norm(n));
-  const group=(title,list)=>list.length?'<div class="eyebrow sec2">'+title+'</div><ul class="breakdown">'+list.map(x=>'<li><span>'+esc(x.n)+'</span><b>'+fmtX(x.v)+' '+x.u+'</b></li>').join('')+'</ul>':'';
+  const xitem=x=>{
+    const r=refFor(x.n,S.profile,c.target), k=TO_G[x.u]||1;
+    if(!r) return '<li class="xi"><span>'+esc(x.n)+'</span><b>'+fmtX(x.v)+' '+x.u+'</b></li>';
+    const pct=r.g?x.v*k/r.g*100:0;
+    const col=r.type==='max'?(pct>100?'--warn':'--accent'):(pct>=100?'--ok':'--accent');
+    return '<li class="xi"><span>'+esc(x.n)+'</span><b>'+fmtX(x.v)+' / '+(r.type==='max'?'max ':'')+fmtX(r.g/k)+' '+x.u+'</b>'+
+      '<div class="bar thin" style="--bar:var('+col+')"><i style="width:'+Math.min(100,pct)+'%"></i></div></li>';
+  };
+  const group=(title,list)=>list.length?'<div class="eyebrow sec2">'+title+'</div><ul class="xlist">'+list.map(xitem).join('')+'</ul>':'';
   const xhtml=xt.length?'<details class="xdet"'+(xOpen?' open':'')+'><summary>Altri valori di oggi</summary>'+
-    group('Fibre, zuccheri, grassi saturi e sale',xt.filter(x=>isFixed(x.n)))+group('Vitamine e minerali',xt.filter(x=>!isFixed(x.n)))+'</details>':'';
+    group('Fibre, zuccheri, grassi saturi e sale',xt.filter(x=>isFixed(x.n)))+group('Vitamine e minerali',xt.filter(x=>!isFixed(x.n)))+
+    '<p class="hint">Riferimenti per adulti (LARN). Fibre, vitamine e minerali sono quote da raggiungere. Zuccheri, grassi saturi, sale e sodio sono un massimo.</p></details>':'';
+  const wGoal=waterGoal(S.profile,d), wTot=waterTotal(d);
+  const wrow='<div class="macro"><span class="m-name"><i style="background:var(--accent)"></i>Acqua</span>'+
+    '<div class="bar" style="--bar:var(--accent)"><i style="width:'+Math.min(100,wGoal?wTot/wGoal*100:0)+'%"></i></div>'+
+    '<span class="m-val"><b>'+nfL.format(wTot/1000)+'</b> / '+nfL.format(wGoal/1000)+' L</span></div>';
   $('#numbers').innerHTML=
     '<div class="hero-label">Obiettivo del giorno <span class="pill">'+actLabel+'</span><button class="link" type="button" data-sub-go="attivita">Cambia</button></div>'+
     '<div class="hero-num">'+fmt(c.target)+'<small>kcal</small></div>'+
     '<div class="kcalrow"><span><b>'+fmt(t.kcal)+'</b> kcal mangiate</span><span>'+(left>=0?'ne restano <b>'+fmt(left)+'</b>':'<b>'+fmt(-left)+'</b> oltre')+'</span></div>'+
     '<div class="bar lane" style="--bar:var('+(over?'--warn':'--accent')+')"><i style="width:'+pct+'%"></i></div>'+
-    '<div class="macros">'+mrow('Proteine',t.p,c.prot,'p')+mrow('Carboidrati',t.c,c.carb,'c')+mrow('Grassi',t.f,c.fat,'f')+'</div>'+xhtml;
+    '<div class="macros">'+mrow('Proteine',t.p,c.prot,'p')+mrow('Carboidrati',t.c,c.carb,'c')+mrow('Grassi',t.f,c.fat,'f')+wrow+'</div>'+xhtml;
   renderMini();
+  renderWater();
 }
 function renderMini(){
   const d=getDay(S.date), c=calc(S.profile,d), t=totals(d);
@@ -375,12 +444,12 @@ function buildStaticForms(){
   const io=INT.map(i=>'<option value="'+i[0]+'">'+i[1]+'</option>').join('');
   $('#dSwimInt').innerHTML=io; $('#dGymInt').innerHTML=io;
 }
-function renderTargets(){
+function renderWaterTable(){
   const p=S.profile;
   const base={swimMin:p.swimMin,swimInt:p.swimInt,gymMin:p.gymMin,gymInt:p.gymInt};
-  const rows=ACTS.map(a=>{const c=calc(p,base,a[0]);
-    return '<tr><th scope="row">'+a[1]+'</th><td class="k">'+fmt(c.target)+'</td><td>'+fmt(c.prot)+'</td><td>'+fmt(c.carb)+'</td><td>'+fmt(c.fat)+'</td></tr>';}).join('');
-  $('#targetsTable').innerHTML='<table class="tbl"><thead><tr><th>Giornata</th><th>kcal</th><th>Prot. g</th><th>Carbo g</th><th>Grassi g</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  const rows=ACTS.map(a=>{const ml=waterGoal(p,base,a[0]);
+    return '<tr><th scope="row">'+a[1]+'</th><td class="k">'+fmtL(ml)+'</td><td>'+Math.round(ml/(p.glassMl||200))+'</td></tr>';}).join('');
+  $('#waterTable').innerHTML='<table class="tbl"><thead><tr><th>Giornata</th><th>Acqua</th><th>Bicchieri</th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
 
 /* ---------- rendering: Peso ---------- */
@@ -465,18 +534,18 @@ function showSub(tab,name){
 function showTab(name){
   ['oggi','obiettivi','peso'].forEach(t=>{$('#tab-'+t).hidden=(t!==name);});
   $$('nav.tabs [data-tab]').forEach(b=>{if(b.dataset.tab===name) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');});
-  if(name==='obiettivi'){syncProfileForm();renderTargets();}
+  if(name==='obiettivi'){syncProfileForm();renderWaterTable();}
   if(name==='peso') renderWeight();
   showSub(name,S.sub[name]);
 }
 function renderAll(){
   renderHeader(); renderDayCard(); renderNumbers(); renderMeals(); renderMealChips();
-  renderResults(); renderDishes(); syncProfileForm(); renderTargets(); renderWeight();
+  renderResults(); renderDishes(); renderWaterForm(); syncProfileForm(); renderWaterTable(); renderWeight();
 }
 function onProfileChanged(){
   S.profile.touched=true;
   queueSave('profile');
-  renderHeader(); renderDayCard(); renderNumbers(); renderTargets();
+  renderHeader(); renderDayCard(); renderNumbers(); renderWaterTable();
 }
 
 /* ---------- events ---------- */
@@ -488,8 +557,11 @@ document.addEventListener('click',e=>{
   if(t.dataset.sub){const sec=t.closest('section');if(sec) showSub(sec.id.replace('tab-',''),t.dataset.sub);return;}
   if(t.dataset.subGo){showSub('oggi',t.dataset.subGo);return;}
   if(t.dataset.nav){S.date=addDays(S.date,+t.dataset.nav);S.planNote=null;S.dishFor=null;renderHeader();renderDayCard();renderNumbers();renderMeals();return;}
-  if(t.dataset.act){setDayAct(S.date,t.dataset.act);renderDayCard();renderNumbers();renderTargets();syncProfileForm();return;}
+  if(t.dataset.act){setDayAct(S.date,t.dataset.act);renderDayCard();renderNumbers();renderWaterTable();syncProfileForm();return;}
   if(t.dataset.planUndo!==undefined){planOnlyToday();return;}
+  if(t.dataset.wunit){S.wUnit=t.dataset.wunit;$('#wq').value=WUNITS[S.wUnit].def;renderWaterForm();return;}
+  if(t.dataset.wquick){$('#wq').value=t.dataset.wquick;updateWaterPreview();return;}
+  if(t.dataset.wtdel){const d=editDay(S.date);d.water=(d.water||[]).filter(x=>x.id!==t.dataset.wtdel);queueSave('d-'+S.date);renderNumbers();return;}
   if(t.dataset.dish){openDish(t.dataset.dish);return;}
   if(t.dataset.ditem!==undefined){removeDishItem(+t.dataset.ditem);return;}
   if(t.dataset.dsave){S.dishFor=t.dataset.dsave;renderMeals();return;}
@@ -526,6 +598,7 @@ $('#dayCard').addEventListener('input',e=>{
 });
 $('#profileForm').addEventListener('input',handleProfileInput);
 $('#trainDefaults').addEventListener('input',handleProfileInput);
+$('#waterSet').addEventListener('input',handleProfileInput);
 function handleProfileInput(e){
   const el=e.target, k=el.dataset.p;
   if(!k) return;
@@ -536,13 +609,14 @@ function handleProfileInput(e){
   el.setAttribute('aria-invalid',ok?'false':'true');
   if(!ok) return;
   S.profile[k]=v;
+  if(k==='glassMl'||k==='bottleMl'){queueSave('profile');renderWaterTable();renderWaterForm();return;}
   onProfileChanged();
 }
 $('#planForm').addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.plan===undefined) return;
   setPlanAct(+el.dataset.plan,el.value);
-  renderHeader();renderDayCard();renderNumbers();renderTargets();
+  renderHeader();renderDayCard();renderNumbers();renderWaterTable();
 });
 $('#foodSearch').addEventListener('input',renderResults);
 $('#pickG').addEventListener('input',updatePreview);
@@ -652,11 +726,66 @@ $('#weightForm').addEventListener('submit',e=>{
   S.weights.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
   queueSave('weights');
   const latest=S.weights[S.weights.length-1];
-  if(latest.d===d){S.profile.weight=entry.kg;S.profile.touched=true;queueSave('profile');renderHeader();renderDayCard();renderNumbers();renderTargets();}
+  if(latest.d===d){S.profile.weight=entry.kg;S.profile.touched=true;queueSave('profile');renderHeader();renderDayCard();renderNumbers();renderWaterTable();}
   renderWeight();
   $('#wKg').value='';
   showSub('peso','andamento');
 });
+
+/* ---------- acqua: registro di oggi ---------- */
+const WUNITS={
+  glass:{name:'Bicchiere',label:'Quanti bicchieri',step:0.5,def:1},
+  bottle:{name:'Borraccia',label:'Quante borracce',step:0.25,def:1},
+  eye:{name:"All'occhio",label:'Quanti ml, circa',step:10,def:200}
+};
+const WQUICK=[['Un sorso',50],['Qualche sorso',150],['Una bella bevuta',300],['Tanta',500]];
+function wMl(kind){return kind==='glass'?S.profile.glassMl:kind==='bottle'?S.profile.bottleMl:1;}
+function renderWaterForm(){
+  const u=WUNITS[S.wUnit];
+  $('#waterUnits').innerHTML=Object.keys(WUNITS).map(k=>'<button type="button" class="chip" data-wunit="'+k+'" aria-pressed="'+(S.wUnit===k)+'">'+WUNITS[k].name+'</button>').join('');
+  $('#wqLabel').textContent=u.label;
+  $('#wq').step=u.step;
+  const qk=$('#wqQuick');
+  qk.hidden=S.wUnit!=='eye';
+  qk.innerHTML=WQUICK.map(q=>'<button type="button" class="chip" data-wquick="'+q[1]+'">'+q[0]+' · '+q[1]+' ml</button>').join('');
+  updateWaterPreview();
+}
+function updateWaterPreview(){
+  const q=parseNum($('#wq').value), el=$('#wqPreview');
+  el.innerHTML=q>0?'<b>'+fmt(q*wMl(S.wUnit))+'</b> ml':'';
+}
+function renderWater(){
+  const d=getDay(S.date), goal=waterGoal(S.profile,d), tot=waterTotal(d), left=goal-tot;
+  const actLabel=ACTS.find(a=>a[0]===d.act)[1];
+  const pct=goal?Math.min(100,tot/goal*100):0;
+  $('#waterHero').innerHTML=
+    '<div class="hero-label">Acqua di oggi <span class="pill">'+actLabel+'</span></div>'+
+    '<div class="hero-num">'+nfL.format(tot/1000)+'<small>L su '+nfL.format(goal/1000)+'</small></div>'+
+    '<div class="kcalrow"><span>consigliata <b>'+fmtL(goal)+'</b></span><span>'+(left>0?'ne mancano <b>'+fmtL(left)+'</b>':'obiettivo raggiunto')+'</span></div>'+
+    '<div class="bar lane" style="--bar:var('+(left>0?'--accent':'--ok')+')"><i style="width:'+pct+'%"></i></div>';
+  const list=(d.water||[]);
+  $('#waterList').innerHTML=list.length?'<div class="eyebrow sec">Oggi</div><ul class="list">'+list.slice().reverse().map(w=>{
+    const name=w.kind==='glass'?'Bicchiere × '+nfk.format(w.qty):w.kind==='bottle'?'Borraccia × '+nfk.format(w.qty):"All'occhio";
+    return '<li class="row"><div class="row-main"><span class="row-name">'+name+'</span></div><span class="row-kcal">'+fmt(w.ml)+'<small> ml</small></span>'+
+      '<button type="button" class="x" data-wtdel="'+esc(w.id)+'" aria-label="Togli questa bevuta">&times;</button></li>';
+  }).join('')+'</ul>':'';
+  updateWaterPreview();
+}
+function addWater(){
+  const q=parseNum($('#wq').value), ml=Math.round(q*wMl(S.wUnit));
+  if(!(q>0)||!(ml>0)||ml>5000){$('#wq').setAttribute('aria-invalid','true');return;}
+  $('#wq').setAttribute('aria-invalid','false');
+  const day=editDay(S.date);
+  day.water=day.water||[];
+  day.water.push({id:uid(),ml:ml,kind:S.wUnit,qty:q});
+  queueSave('d-'+S.date);
+  $('#wq').value=WUNITS[S.wUnit].def;
+  renderNumbers();
+  flash('#waterMsg','Aggiunti '+fmt(ml)+' ml.');
+}
+$('#wAdd').addEventListener('click',addWater);
+$('#wq').addEventListener('input',updateWaterPreview);
+$('#wq').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addWater();}});
 
 /* ---------- piano settimanale collegato ai giorni ---------- */
 /* Cambiare la giornata di oggi (o di un giorno futuro) aggiorna il piano di quel giorno della settimana
@@ -692,7 +821,7 @@ function planOnlyToday(){
   queueSave('profile');
   Object.keys(n.prevDays).forEach(k=>{if(S.days[k]){S.days[k].act=n.prevDays[k];queueSave('d-'+k);}});
   S.planNote=null;
-  renderDayCard(); renderTargets(); syncProfileForm();
+  renderDayCard(); renderWaterTable(); syncProfileForm();
 }
 
 /* ---------- piatti salvati ---------- */
