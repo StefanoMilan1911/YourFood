@@ -1,0 +1,25 @@
+/* Colori di YourFood: cambia solo i valori qui. Tema chiaro nel primo blocco, tema scuro nei due successivi. */
+:root{
+  --bg:#ECF2F2; --surface:#FFFFFF; --surface-2:#E4EDED; --ink:#0F2629; --ink-2:#51696C; --line:#CBDADB;
+  --accent:#0A7C85; --accent-ink:#FFFFFF; --accent-soft:#D2EEF0;
+  --p:#C0432C; --c:#B67A05; --f:#3A6DBF;
+  --ok:#26805A; --warn:#A8700F; --bad:#B93A2B;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1416; --surface:#122024; --surface-2:#192B30; --ink:#E4F0F0; --ink-2:#8FACAF; --line:#243A3F;
+    --accent:#45C3CD; --accent-ink:#04252A; --accent-soft:#12373C;
+    --p:#F0806A; --c:#E6B04A; --f:#7FA8EE;
+    --ok:#4CC38A; --warn:#E3A13A; --bad:#EF6A5B;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1416; --surface:#122024; --surface-2:#192B30; --ink:#E4F0F0; --ink-2:#8FACAF; --line:#243A3F;
+  --accent:#45C3CD; --accent-ink:#04252A; --accent-soft:#12373C;
+  --p:#F0806A; --c:#E6B04A; --f:#7FA8EE;
+  --ok:#4CC38A; --warn:#E3A13A; --bad:#EF6A5B;
+  color-scheme:dark;
+}

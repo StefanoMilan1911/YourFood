@@ -2,31 +2,8 @@
 html{color-scheme:light}
 body{margin:0}
 [hidden]{display:none!important}
-/* Layout: single-column phone app, bottom tab bar (Oggi / Obiettivi / Peso). Scoreboard-style condensed numerals, pool-teal accent. */
-:root{
-  --bg:#ECF2F2; --surface:#FFFFFF; --surface-2:#E4EDED; --ink:#0F2629; --ink-2:#51696C; --line:#CBDADB;
-  --accent:#0A7C85; --accent-ink:#FFFFFF; --accent-soft:#D2EEF0;
-  --p:#C0432C; --c:#B67A05; --f:#3A6DBF;
-  --ok:#26805A; --warn:#A8700F; --bad:#B93A2B;
-  --display:"Barlow Condensed","Arial Narrow",sans-serif;
-  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#0B1416; --surface:#122024; --surface-2:#192B30; --ink:#E4F0F0; --ink-2:#8FACAF; --line:#243A3F;
-    --accent:#45C3CD; --accent-ink:#04252A; --accent-soft:#12373C;
-    --p:#F0806A; --c:#E6B04A; --f:#7FA8EE;
-    --ok:#4CC38A; --warn:#E3A13A; --bad:#EF6A5B;
-    color-scheme:dark;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#0B1416; --surface:#122024; --surface-2:#192B30; --ink:#E4F0F0; --ink-2:#8FACAF; --line:#243A3F;
-  --accent:#45C3CD; --accent-ink:#04252A; --accent-soft:#12373C;
-  --p:#F0806A; --c:#E6B04A; --f:#7FA8EE;
-  --ok:#4CC38A; --warn:#E3A13A; --bad:#EF6A5B;
-  color-scheme:dark;
-}
+/* Layout: app da telefono a colonna singola, barra in basso (Oggi / Obiettivi / Peso) e, in ogni schermata, una riga di bottoni per scegliere la sezione. */
+/* I colori sono in colors.css */
 *,*::before,*::after{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
 #app{max-width:640px;margin-inline:auto;padding-inline:16px;padding-block:12px 104px}
@@ -121,9 +98,6 @@ details .grid2{margin-top:12px}
 .tbl th:first-child{text-align:left}
 .tbl tbody th{font-weight:600}
 .tbl td.k{font-family:var(--display);font-size:20px;font-weight:600}
-dl.how{margin:0;display:grid;gap:10px;font-size:14px}
-dl.how dt{font-weight:600}
-dl.how dd{margin:2px 0 0;color:var(--ink-2)}
 .trend-top{display:flex;flex-wrap:wrap;gap:6px 24px;align-items:baseline;margin-bottom:10px}
 .big{font-family:var(--display);font-weight:700;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
 .big small{font-size:18px;color:var(--ink-2);font-weight:600;margin-left:4px}
@@ -161,8 +135,6 @@ nav.tabs svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1
 .form-actions .btn{width:auto;flex:1 1 200px}
 
 .sec2{margin-top:12px;margin-bottom:0}
-.split{margin:14px 0 0;font-size:14px;color:var(--ink-2)}
-.split b{color:var(--ink);font-variant-numeric:tabular-nums}
 
 /* backup */
 .btn.alt{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
@@ -170,3 +142,23 @@ nav.tabs svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1
 .sub{font-family:var(--display);font-weight:600;font-size:18px;margin:18px 0 8px}
 textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0;resize:vertical}
 #bkPreview .note{margin-top:12px}
+
+/* sezioni a bottoni */
+.subnav{display:flex;gap:8px;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);margin-inline:-16px;padding:6px 16px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.subnav::-webkit-scrollbar{display:none}
+.subnav .chip{flex:0 0 auto;white-space:nowrap}
+.hero-label .link{margin-left:auto}
+
+/* riepilogo compatto */
+.mini{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.mini .kcalrow{margin:0}
+.mm-row{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.mm{display:inline-flex;align-items:center;gap:5px}
+.mm i{width:8px;height:8px;border-radius:50%;flex:none}
+.mm b{color:var(--ink);font-weight:600}
+
+/* piatti */
+.dishsave{display:flex;flex-direction:column;gap:4px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.dishsave .form-actions{margin-top:6px}
+.pick-head .field{min-width:0}
+#dishItems{margin:0}

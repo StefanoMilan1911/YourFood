@@ -38,15 +38,30 @@ const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,p
 /* ---------- state ---------- */
 const TODAY=iso(new Date());
 function defaultMeal(){const h=new Date().getHours();return h<10?'colazione':h<15?'pranzo':h<18?'spuntino':'cena';}
-const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal()};
+const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],dishes:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal(),
+  sub:{oggi:'riepilogo',obiettivi:'dati',peso:'registra'},planNote:null,dishFor:null,dishSel:null,dishConfirm:false};
+const pl=(n,a,b)=>n+' '+(n===1?a:b);
+const wd=date=>(parse(date).getDay()+6)%7;
 
 let xOpen=true;
 document.addEventListener('toggle',e=>{if(e.target.classList&&e.target.classList.contains('xdet')) xOpen=e.target.open;},true);
+function normExtras(x){
+  return (Array.isArray(x)?x:[]).filter(e=>e&&e.n&&isFinite(+e.v)&&+e.v>0).map(e=>({n:String(e.n),v:+e.v,u:TO_G[e.u]?e.u:'g'}));
+}
 function normFoods(list){
   return (Array.isArray(list)?list:[]).filter(f=>f&&typeof f.n==='string'&&f.id).map(f=>({
     id:String(f.id),n:f.n,k:+f.k||0,p:+f.p||0,c:+f.c||0,f:+f.f||0,g:+f.g||100,u:+f.u||0,
+    un:f.un==='ml'?'ml':'g',
     list:typeof f.list==='string'?f.list:'',
-    x:(Array.isArray(f.x)?f.x:[]).filter(e=>e&&e.n&&isFinite(+e.v)&&+e.v>0).map(e=>({n:String(e.n),v:+e.v,u:TO_G[e.u]?e.u:'g'}))}));
+    x:normExtras(f.x)}));
+}
+function normItem(e){
+  return {name:String(e.name||'').slice(0,80),g:+e.g||0,un:e.un==='ml'?'ml':'g',kcal:+e.kcal||0,p:+e.p||0,c:+e.c||0,f:+e.f||0,x:normExtras(e.x)};
+}
+function normDishes(list){
+  return (Array.isArray(list)?list:[]).filter(d=>d&&typeof d.n==='string'&&d.id&&Array.isArray(d.items)).map(d=>({
+    id:String(d.id),n:d.n.slice(0,60),u:+d.u||0,
+    items:d.items.filter(i=>i&&i.name).map(normItem)})).filter(d=>d.items.length);
 }
 function normProfile(p){
   const q=Object.assign(clone(DEFAULT_PROFILE),p||{});
@@ -63,7 +78,12 @@ function totals(d){
   return d.entries.reduce((a,e)=>({kcal:a.kcal+e.kcal,p:a.p+e.p,c:a.c+e.c,f:a.f+e.f}),{kcal:0,p:0,c:0,f:0});
 }
 
-function scaleExtras(food,k){return (food.x||[]).map(e=>({n:e.n,v:r3(e.v*k),u:e.u}));}
+function dishTotals(d,m){
+  m=m||1;
+  return d.items.reduce((a,i)=>({kcal:a.kcal+i.kcal*m,p:a.p+i.p*m,c:a.c+i.c*m,f:a.f+i.f*m}),{kcal:0,p:0,c:0,f:0});
+}
+function scaleX(list,k){return (list||[]).map(e=>({n:e.n,v:r3(e.v*k),u:e.u}));}
+function scaleExtras(food,k){return scaleX(food.x,k);}
 function totalsExtra(d){
   const map=new Map();
   d.entries.forEach(e=>(e.x||[]).forEach(x=>{
@@ -98,7 +118,7 @@ const LS='yourfood.v1';
 let dbCol=null, dbBroken=false;
 function lsRead(){try{const raw=localStorage.getItem(LS);return raw?JSON.parse(raw):null;}catch(e){return null;}}
 function lsWrite(){
-  const json=JSON.stringify({profile:S.profile,days:S.days,weights:S.weights,foods:S.foods});
+  const json=JSON.stringify({profile:S.profile,days:S.days,weights:S.weights,foods:S.foods,dishes:S.dishes});
   try{localStorage.setItem(LS,json);}catch(e){}
   nativePost(json);
 }
@@ -113,7 +133,7 @@ function nativePost(json){
 window.yourfoodRestore=function(json){
   try{
     const data=JSON.parse(json);
-    const has=d=>!!d&&((d.profile&&d.profile.touched)||(d.days&&Object.keys(d.days).length>0)||(d.weights&&d.weights.length>0)||(d.foods&&d.foods.length>0));
+    const has=d=>!!d&&((d.profile&&d.profile.touched)||(d.days&&Object.keys(d.days).length>0)||(d.weights&&d.weights.length>0)||(d.foods&&d.foods.length>0)||(d.dishes&&d.dishes.length>0));
     if(has(lsRead())||!has(data)) return;
     adopt(data);
     S.weights.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
@@ -128,6 +148,7 @@ function adopt(data){
   if(data.days&&typeof data.days==='object') S.days=data.days;
   if(Array.isArray(data.weights)) S.weights=data.weights;
   if(Array.isArray(data.foods)) S.foods=normFoods(data.foods);
+  if(Array.isArray(data.dishes)) S.dishes=normDishes(data.dishes);
 }
 function setStatus(kind){
   const el=$('#status');
@@ -148,6 +169,7 @@ function dataFor(key){
   if(key==='profile') return clone(S.profile);
   if(key==='weights') return {list:clone(S.weights)};
   if(key==='foods') return {list:clone(S.foods)};
+  if(key==='dishes') return {list:clone(S.dishes)};
   const day=S.days[key.slice(2)];
   return day?clone(day):null;
 }
@@ -206,7 +228,8 @@ function renderDayCard(){
   const row=(label,mk,ik)=>'<div class="train"><div class="train-name">'+label+'</div>'+
     '<label class="field"><span>Minuti</span><input type="number" inputmode="numeric" min="5" max="300" step="5" value="'+d[mk]+'" data-f="'+mk+'"></label>'+
     '<label class="field"><span>Intensità</span><select data-f="'+ik+'">'+opts(d[ik])+'</select></label></div>';
-  $('#dayCard').innerHTML='<h2 class="h">Attività del giorno</h2><div class="chips" role="group" aria-label="Tipo di giornata">'+chips+'</div>'+
+  const pn=S.planNote&&S.planNote.date===S.date?'<div class="note" style="margin-top:14px"><span>Ho aggiornato anche il piano di ogni '+WEEK[S.planNote.idx].toLowerCase()+'.</span><button class="link" type="button" data-plan-undo>Solo per oggi</button></div>':'';
+  $('#dayCard').innerHTML='<h2 class="h">Attività del giorno</h2><div class="chips" role="group" aria-label="Tipo di giornata">'+chips+'</div>'+pn+
     (hasP?row('Piscina','swimMin','swimInt'):'')+(hasA?row('Allenamento con pesi','gymMin','gymInt'):'');
 }
 function renderNumbers(){
@@ -214,11 +237,6 @@ function renderNumbers(){
   const left=c.target-t.kcal;
   const over=t.kcal>c.target*1.05;
   const actLabel=ACTS.find(a=>a[0]===d.act)[1];
-  const parts=[['Calorie base (basale '+fmt(c.bmr)+' × '+nfk.format(S.profile.neat)+')',c.base]];
-  if(c.swim>0) parts.push(['Piscina',c.swim]);
-  if(c.gym>0) parts.push(['Allenamento con pesi',c.gym]);
-  parts.push(['Surplus per crescere',c.surplus]);
-  const bd=parts.map((p,i)=>'<li><span>'+p[0]+'</span><b>'+(i===0?'':'+')+fmt(p[1])+'</b></li>').join('');
   const pct=c.target?Math.min(100,t.kcal/c.target*100):0;
   const mrow=(label,eaten,tg,col)=>'<div class="macro"><span class="m-name"><i style="background:var(--'+col+')"></i>'+label+'</span>'+
     '<div class="bar" style="--bar:var(--'+col+')"><i style="width:'+Math.min(100,tg?eaten/tg*100:0)+'%"></i></div>'+
@@ -228,30 +246,45 @@ function renderNumbers(){
   const group=(title,list)=>list.length?'<div class="eyebrow sec2">'+title+'</div><ul class="breakdown">'+list.map(x=>'<li><span>'+esc(x.n)+'</span><b>'+fmtX(x.v)+' '+x.u+'</b></li>').join('')+'</ul>':'';
   const xhtml=xt.length?'<details class="xdet"'+(xOpen?' open':'')+'><summary>Altri valori di oggi</summary>'+
     group('Fibre, zuccheri, grassi saturi e sale',xt.filter(x=>isFixed(x.n)))+group('Vitamine e minerali',xt.filter(x=>!isFixed(x.n)))+'</details>':'';
-  const kP=4*t.p,kC=4*t.c,kF=9*t.f,kS=kP+kC+kF;
-  const split=kS>0?'<p class="split">Calorie da: proteine <b>'+fmt(kP/kS*100)+'%</b> · carboidrati <b>'+fmt(kC/kS*100)+'%</b> · grassi <b>'+fmt(kF/kS*100)+'%</b></p>':'';
   $('#numbers').innerHTML=
-    '<div class="hero-label">Obiettivo del giorno <span class="pill">'+actLabel+'</span></div>'+
+    '<div class="hero-label">Obiettivo del giorno <span class="pill">'+actLabel+'</span><button class="link" type="button" data-sub-go="attivita">Cambia</button></div>'+
     '<div class="hero-num">'+fmt(c.target)+'<small>kcal</small></div>'+
-    '<ul class="breakdown">'+bd+'</ul>'+
     '<div class="kcalrow"><span><b>'+fmt(t.kcal)+'</b> kcal mangiate</span><span>'+(left>=0?'ne restano <b>'+fmt(left)+'</b>':'<b>'+fmt(-left)+'</b> oltre')+'</span></div>'+
     '<div class="bar lane" style="--bar:var('+(over?'--warn':'--accent')+')"><i style="width:'+pct+'%"></i></div>'+
-    '<div class="macros">'+mrow('Proteine',t.p,c.prot,'p')+mrow('Carboidrati',t.c,c.carb,'c')+mrow('Grassi',t.f,c.fat,'f')+'</div>'+split+xhtml;
+    '<div class="macros">'+mrow('Proteine',t.p,c.prot,'p')+mrow('Carboidrati',t.c,c.carb,'c')+mrow('Grassi',t.f,c.fat,'f')+'</div>'+xhtml;
+  renderMini();
+}
+function renderMini(){
+  const d=getDay(S.date), c=calc(S.profile,d), t=totals(d);
+  const left=c.target-t.kcal, over=t.kcal>c.target*1.05;
+  const pct=c.target?Math.min(100,t.kcal/c.target*100):0;
+  const mm=(l,e,tg,col)=>'<span class="mm"><i style="background:var(--'+col+')"></i>'+l+' <b>'+fmt(e)+'</b>/'+fmt(tg)+' g</span>';
+  $('#miniNumbers').innerHTML='<div class="kcalrow"><span><b>'+fmt(t.kcal)+'</b> / '+fmt(c.target)+' kcal</span><span>'+(left>=0?'ne restano <b>'+fmt(left)+'</b>':'<b>'+fmt(-left)+'</b> oltre')+'</span></div>'+
+    '<div class="bar lane" style="--bar:var('+(over?'--warn':'--accent')+')"><i style="width:'+pct+'%"></i></div>'+
+    '<div class="mm-row">'+mm('Proteine',t.p,c.prot,'p')+mm('Carboidrati',t.c,c.carb,'c')+mm('Grassi',t.f,c.fat,'f')+'</div>';
 }
 function renderMeals(){
   const d=getDay(S.date);
   $('#meals').innerHTML=MEALS.map(m=>{
     const es=d.entries.filter(e=>e.meal===m[0]);
     const sum=es.reduce((a,e)=>a+e.kcal,0);
-    const rows=es.length?es.map(e=>'<li class="row"><div class="row-main"><span class="row-name">'+esc(e.name)+'</span><span class="row-sub">'+(e.g?fmt(e.g)+' g · ':'')+'P '+f1(e.p)+' · C '+f1(e.c)+' · G '+f1(e.f)+'</span></div>'+
+    const rows=es.length?es.map(e=>'<li class="row"><div class="row-main"><span class="row-name">'+esc(e.name)+'</span><span class="row-sub">'+(e.g?fmt(e.g)+' '+(e.un||'g')+' · ':'')+'P '+f1(e.p)+' · C '+f1(e.c)+' · G '+f1(e.f)+'</span></div>'+
       '<span class="row-kcal">'+fmt(e.kcal)+'</span><button type="button" class="x" data-del="'+esc(e.id)+'" aria-label="Elimina '+esc(e.name)+'">&times;</button></li>').join(''):'<li class="empty">Ancora niente</li>';
-    return '<section class="card"><div class="meal-head"><h3 class="h3">'+m[1]+'</h3><span class="meal-kcal">'+fmt(sum)+' kcal</span></div><ul class="list">'+rows+'</ul></section>';
+    let foot='';
+    if(es.length){
+      foot=S.dishFor===m[0]?
+        '<div class="dishsave"><input type="text" maxlength="60" placeholder="Nome del piatto" data-dname aria-label="Nome del piatto"><div class="form-actions"><button class="btn" type="button" data-dsave-ok="'+m[0]+'">Salva piatto</button><button class="link" type="button" data-dsave-cancel>Annulla</button></div></div>'
+        :'<button class="link" type="button" data-dsave="'+m[0]+'">Salva come piatto</button>';
+    }
+    return '<section class="card"><div class="meal-head"><h3 class="h3">'+m[1]+'</h3><span class="meal-kcal">'+fmt(sum)+' kcal</span></div><ul class="list">'+rows+'</ul>'+foot+'</section>';
   }).join('');
+  if(S.dishFor){const i=$('[data-dname]');if(i) i.focus();}
 }
 function renderMealChips(){
-  $('#mealChips').innerHTML=MEALS.map(m=>'<button type="button" class="chip" data-meal="'+m[0]+'" aria-pressed="'+(S.meal===m[0])+'">'+m[1]+'</button>').join('');
-  const pm=$('#pickAdd'); const lab=MEALS.find(m=>m[0]===S.meal)[1];
-  pm.textContent='Aggiungi a '+lab;
+  const html=MEALS.map(m=>'<button type="button" class="chip" data-meal="'+m[0]+'" aria-pressed="'+(S.meal===m[0])+'">'+m[1]+'</button>').join('');
+  $$('.mealchips').forEach(el=>{el.innerHTML=html;});
+  const lab='Aggiungi a '+MEALS.find(m=>m[0]===S.meal)[1];
+  $('#pickAdd').textContent=lab; $('#dishAdd').textContent=lab;
 }
 
 /* ---------- food search and add ---------- */
@@ -295,7 +328,7 @@ function renderResults(){
     return;
   }
   el.innerHTML=(q?'':'<div class="eyebrow">'+(S.listFilter?esc(S.listFilter):'Usati di recente')+'</div>')+'<ul class="list">'+list.map(f=>
-    '<li class="resrow"><button type="button" class="res" data-food="'+esc(f.id)+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-sub">P '+f1(f.p)+' · C '+f1(f.c)+' · G '+f1(f.f)+' ogni 100 g</span><span class="res-kcal">'+fmt(f.k)+'<small> kcal</small></span></button>'+
+    '<li class="resrow"><button type="button" class="res" data-food="'+esc(f.id)+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-sub">P '+f1(f.p)+' · C '+f1(f.c)+' · G '+f1(f.f)+' ogni 100 '+(f.un||'g')+'</span><span class="res-kcal">'+fmt(f.k)+'<small> kcal</small></span></button>'+
     '<button type="button" class="x" data-fdel="'+esc(f.id)+'" aria-label="Rimuovi '+esc(f.n)+' dall\'elenco">&times;</button></li>').join('')+'</ul>';
 }
 function updatePreview(){
@@ -303,14 +336,14 @@ function updatePreview(){
   if(!pick||!(g>0)){el.textContent='';dt.textContent='';return;}
   const k=g/100;
   el.innerHTML='<b>'+fmt(pick.k*k)+'</b> kcal<br>P '+f1(pick.p*k)+' · C '+f1(pick.c*k)+' · G '+f1(pick.f*k);
-  const xs=scaleExtras(pick,k).map(e=>esc(e.n)+' '+fmtX(e.v)+' '+e.u).join(' · ');
-  dt.innerHTML='Calcolo: '+fmtX(g)+' ÷ 100 = <b>'+nfk.format(k)+'</b>, e moltiplico ogni valore ogni 100 g per questo numero.'+(xs?'<br>'+xs:'');
+  dt.textContent=scaleExtras(pick,k).map(e=>e.n+' '+fmtX(e.v)+' '+e.u).join(' · ');
 }
 function openPick(f){
   pick=f;
   $('#foodPick').hidden=false;
   $('#pickName').textContent=f.n;
   $('#pickNote').textContent=f.note||'';
+  $('#pickGLabel').textContent='Quantità ('+(f.un||'g')+')';
   $('#pickG').value=f.g||100;
   updatePreview();
   const g=$('#pickG'); g.focus(); g.select();
@@ -418,16 +451,27 @@ function renderWeight(){
 }
 
 /* ---------- navigation ---------- */
+function showSub(tab,name){
+  S.sub[tab]=name;
+  $$('#tab-'+tab+' [data-sec]').forEach(el=>{el.hidden=el.dataset.sec!==name;});
+  $$('#tab-'+tab+' .subnav [data-sub]').forEach(b=>{
+    const on=b.dataset.sub===name;
+    b.setAttribute('aria-pressed',String(on));
+    if(on&&b.scrollIntoView){try{b.scrollIntoView({inline:'center',block:'nearest'});}catch(e){}}
+  });
+  if(tab==='oggi') $('#miniNumbers').hidden=(name==='riepilogo');
+  window.scrollTo(0,0);
+}
 function showTab(name){
   ['oggi','obiettivi','peso'].forEach(t=>{$('#tab-'+t).hidden=(t!==name);});
   $$('nav.tabs [data-tab]').forEach(b=>{if(b.dataset.tab===name) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');});
   if(name==='obiettivi'){syncProfileForm();renderTargets();}
   if(name==='peso') renderWeight();
-  window.scrollTo(0,0);
+  showSub(name,S.sub[name]);
 }
 function renderAll(){
   renderHeader(); renderDayCard(); renderNumbers(); renderMeals(); renderMealChips();
-  renderResults(); syncProfileForm(); renderTargets(); renderWeight();
+  renderResults(); renderDishes(); syncProfileForm(); renderTargets(); renderWeight();
 }
 function onProfileChanged(){
   S.profile.touched=true;
@@ -440,9 +484,17 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('button');
   if(!t) return;
   if(t.dataset.tab){showTab(t.dataset.tab);return;}
-  if(t.dataset.goto){showTab(t.dataset.goto);return;}
-  if(t.dataset.nav){S.date=addDays(S.date,+t.dataset.nav);renderHeader();renderDayCard();renderNumbers();renderMeals();return;}
-  if(t.dataset.act){const d=editDay(S.date);d.act=t.dataset.act;queueSave('d-'+S.date);renderDayCard();renderNumbers();return;}
+  if(t.dataset.goto){showTab(t.dataset.goto);showSub(t.dataset.goto,'dati');return;}
+  if(t.dataset.sub){const sec=t.closest('section');if(sec) showSub(sec.id.replace('tab-',''),t.dataset.sub);return;}
+  if(t.dataset.subGo){showSub('oggi',t.dataset.subGo);return;}
+  if(t.dataset.nav){S.date=addDays(S.date,+t.dataset.nav);S.planNote=null;S.dishFor=null;renderHeader();renderDayCard();renderNumbers();renderMeals();return;}
+  if(t.dataset.act){setDayAct(S.date,t.dataset.act);renderDayCard();renderNumbers();renderTargets();syncProfileForm();return;}
+  if(t.dataset.planUndo!==undefined){planOnlyToday();return;}
+  if(t.dataset.dish){openDish(t.dataset.dish);return;}
+  if(t.dataset.ditem!==undefined){removeDishItem(+t.dataset.ditem);return;}
+  if(t.dataset.dsave){S.dishFor=t.dataset.dsave;renderMeals();return;}
+  if(t.dataset.dsaveCancel!==undefined){S.dishFor=null;renderMeals();return;}
+  if(t.dataset.dsaveOk){doSaveDish(t.dataset.dsaveOk);return;}
   if(t.dataset.meal){S.meal=t.dataset.meal;renderMealChips();return;}
   if(t.dataset.lf!==undefined){S.listFilter=t.dataset.lf;renderResults();return;}
   if(t.dataset.xdel!==undefined){t.closest('.xrow').remove();return;}
@@ -489,8 +541,8 @@ function handleProfileInput(e){
 $('#planForm').addEventListener('change',e=>{
   const el=e.target;
   if(el.dataset.plan===undefined) return;
-  S.profile.plan[+el.dataset.plan]=el.value;
-  onProfileChanged();
+  setPlanAct(+el.dataset.plan,el.value);
+  renderHeader();renderDayCard();renderNumbers();renderTargets();
 });
 $('#foodSearch').addEventListener('input',renderResults);
 $('#pickG').addEventListener('input',updatePreview);
@@ -500,7 +552,7 @@ $('#pickAdd').addEventListener('click',()=>{
   if(!pick||!(g>0)){$('#pickG').setAttribute('aria-invalid','true');return;}
   $('#pickG').setAttribute('aria-invalid','false');
   const k=g/100;
-  addEntry({meal:S.meal,name:pick.n,g:g,kcal:r1(pick.k*k),p:r1(pick.p*k),c:r1(pick.c*k),f:r1(pick.f*k),x:scaleExtras(pick,k)});
+  addEntry({meal:S.meal,name:pick.n,g:g,un:pick.un||'g',kcal:r1(pick.k*k),p:r1(pick.p*k),c:r1(pick.c*k),f:r1(pick.f*k),x:scaleExtras(pick,k)});
   pick.u=Date.now();
   queueSave('foods');
   closePick();
@@ -520,8 +572,14 @@ function addExtraRow(n,v,u){
   $('#cExtra').appendChild(row);
   return row;
 }
+function unitLabels(un){
+  $('#cGLabel').textContent='Porzione abituale ('+un+')';
+  $('#cPer').textContent="Valori ogni 100 "+un+", dall'etichetta";
+}
+$('#cUn').addEventListener('change',()=>unitLabels($('#cUn').value));
 function resetForm(){
   S.editId=null;
+  $('#cUn').value='g'; unitLabels('g');
   ['#cName','#cList','#cG','#cK','#cP','#cC','#cF','#cFib','#cSug','#cSat','#cSalt'].forEach(id=>{$(id).value='';});
   $('#cExtra').innerHTML='';
   $('#newFoodTitle').textContent='Nuovo alimento';
@@ -535,6 +593,7 @@ function startEdit(food){
   $('#newFoodTitle').textContent='Modifica alimento';
   $('#cAdd').textContent='Salva modifiche';
   $('#cCancelEdit').hidden=false;
+  $('#cUn').value=food.un||'g'; unitLabels(food.un||'g');
   $('#cName').value=food.n; $('#cList').value=food.list||''; $('#cG').value=food.g||'';
   $('#cK').value=food.k; $('#cP').value=food.p; $('#cC').value=food.c; $('#cF').value=food.f;
   (food.x||[]).forEach(e=>{
@@ -572,8 +631,8 @@ $('#cAdd').addEventListener('click',()=>{
   if(clash){flash('#addMsg','Esiste già un alimento con questo nome.');return;}
   if(!food){food={id:uid()};S.foods.push(food);}
   const est=4*p+4*c+9*f;
-  const warn=kGiven&&Math.abs(k-est)>Math.max(30,0.2*k)?' Controlla i valori: con 4 kcal per g di proteine e carboidrati e 9 per i grassi le calorie sarebbero circa '+fmt(est)+'.':'';
-  Object.assign(food,{n:name,list:canonList($('#cList').value),k:r1(k),p:r1(p),c:r1(c),f:r1(f),g:num('#cG')||100,u:Date.now(),x:readExtras()});
+  const warn=kGiven&&Math.abs(k-est)>Math.max(30,0.2*k)?' Controlla i valori: le calorie non tornano con proteine, carboidrati e grassi (sarebbero circa '+fmt(est)+').':'';
+  Object.assign(food,{n:name,un:$('#cUn').value==='ml'?'ml':'g',list:canonList($('#cList').value),k:r1(k),p:r1(p),c:r1(c),f:r1(f),g:num('#cG')||100,u:Date.now(),x:readExtras()});
   queueSave('foods');
   resetForm();
   S.listFilter='';
@@ -596,14 +655,152 @@ $('#weightForm').addEventListener('submit',e=>{
   if(latest.d===d){S.profile.weight=entry.kg;S.profile.touched=true;queueSave('profile');renderHeader();renderDayCard();renderNumbers();renderTargets();}
   renderWeight();
   $('#wKg').value='';
-  flash('#wMsg','Salvato.');
+  showSub('peso','andamento');
+});
+
+/* ---------- piano settimanale collegato ai giorni ---------- */
+/* Cambiare la giornata di oggi (o di un giorno futuro) aggiorna il piano di quel giorno della settimana
+   e i giorni futuri gia' salvati con lo stesso giorno. I giorni passati non si toccano. */
+function setDayAct(date,act){
+  editDay(date).act=act;
+  queueSave('d-'+date);
+  S.planNote=null;
+  if(date<TODAY) return;
+  const idx=wd(date), prevPlan=S.profile.plan[idx];
+  if(prevPlan===act) return;
+  const prevDays={};
+  S.profile.plan[idx]=act;
+  S.profile.touched=true;
+  Object.keys(S.days).forEach(k=>{
+    if(k>=TODAY&&k!==date&&wd(k)===idx&&S.days[k].act!==act){prevDays[k]=S.days[k].act;S.days[k].act=act;queueSave('d-'+k);}
+  });
+  queueSave('profile');
+  S.planNote={date,idx,prevPlan,prevDays};
+}
+function setPlanAct(idx,act){
+  S.profile.plan[idx]=act;
+  S.profile.touched=true;
+  queueSave('profile');
+  Object.keys(S.days).forEach(k=>{
+    if(k>=TODAY&&wd(k)===idx&&S.days[k].act!==act){S.days[k].act=act;queueSave('d-'+k);}
+  });
+  S.planNote=null;
+}
+function planOnlyToday(){
+  const n=S.planNote; if(!n) return;
+  S.profile.plan[n.idx]=n.prevPlan;
+  queueSave('profile');
+  Object.keys(n.prevDays).forEach(k=>{if(S.days[k]){S.days[k].act=n.prevDays[k];queueSave('d-'+k);}});
+  S.planNote=null;
+  renderDayCard(); renderTargets(); syncProfileForm();
+}
+
+/* ---------- piatti salvati ---------- */
+function dishById(id){return S.dishes.find(d=>d.id===id)||null;}
+function renderDishes(){
+  const el=$('#dishList');
+  if(S.dishSel&&!dishById(S.dishSel)) closeDish();
+  if(!S.dishes.length){
+    el.innerHTML='<p class="muted">Nessun piatto salvato. In Pasti premi "Salva come piatto" sotto un pasto che mangi spesso: poi lo aggiungi da qui con un tocco.</p>';
+    return;
+  }
+  const list=S.dishes.slice().sort((a,b)=>(b.u||0)-(a.u||0)||a.n.localeCompare(b.n,'it'));
+  el.innerHTML='<ul class="list">'+list.map(d=>{
+    const t=dishTotals(d);
+    return '<li class="resrow"><button type="button" class="res" data-dish="'+esc(d.id)+'"><span class="res-name">'+esc(d.n)+'</span><span class="res-sub">'+pl(d.items.length,'alimento','alimenti')+' · P '+f1(t.p)+' · C '+f1(t.c)+' · G '+f1(t.f)+'</span><span class="res-kcal">'+fmt(t.kcal)+'<small> kcal</small></span></button></li>';
+  }).join('')+'</ul>';
+}
+function openDish(id){
+  const d=dishById(id); if(!d) return;
+  S.dishSel=id; S.dishConfirm=false;
+  $('#dishPick').hidden=false;
+  $('#dishName').value=d.n;
+  $('#dishMult').value='1';
+  $('#dishDel').textContent='Elimina piatto';
+  renderDishItems(); updateDishPreview();
+  $('#dishPick').scrollIntoView({block:'nearest'});
+}
+function closeDish(){S.dishSel=null;S.dishConfirm=false;$('#dishPick').hidden=true;}
+function renderDishItems(){
+  const d=dishById(S.dishSel); if(!d) return;
+  $('#dishItems').innerHTML=d.items.map((i,n)=>'<li class="row"><div class="row-main"><span class="row-name">'+esc(i.name)+'</span><span class="row-sub">'+(i.g?fmt(i.g)+' '+i.un+' · ':'')+'P '+f1(i.p)+' · C '+f1(i.c)+' · G '+f1(i.f)+'</span></div>'+
+    '<span class="row-kcal">'+fmt(i.kcal)+'</span><button type="button" class="x" data-ditem="'+n+'" aria-label="Togli '+esc(i.name)+' dal piatto">&times;</button></li>').join('');
+}
+function updateDishPreview(){
+  const d=dishById(S.dishSel), m=parseNum($('#dishMult').value), el=$('#dishPreview');
+  if(!d||!(m>0)){el.textContent='';return;}
+  const t=dishTotals(d,m);
+  el.innerHTML='<b>'+fmt(t.kcal)+'</b> kcal<br>P '+f1(t.p)+' · C '+f1(t.c)+' · G '+f1(t.f);
+}
+function removeDishItem(n){
+  const d=dishById(S.dishSel); if(!d) return;
+  d.items.splice(n,1);
+  if(!d.items.length){
+    S.dishes=S.dishes.filter(x=>x.id!==d.id);
+    closeDish(); queueSave('dishes'); renderDishes();
+    flash('#dishMsg','Piatto vuoto: eliminato.');
+    return;
+  }
+  queueSave('dishes'); renderDishItems(); updateDishPreview(); renderDishes();
+}
+function doSaveDish(meal){
+  const inp=$('[data-dname]');
+  const name=(inp?inp.value:'').trim();
+  const es=getDay(S.date).entries.filter(e=>e.meal===meal);
+  if(!name){flash('#mealMsg','Scrivi il nome del piatto.');if(inp) inp.focus();return;}
+  if(!es.length) return;
+  const items=es.map(normItem);
+  const ex=S.dishes.find(d=>norm(d.n)===norm(name));
+  if(ex){ex.n=name;ex.items=items;ex.u=Date.now();}
+  else S.dishes.push({id:uid(),n:name,u:Date.now(),items});
+  S.dishFor=null;
+  queueSave('dishes');
+  renderMeals(); renderDishes();
+  flash('#mealMsg',(ex?'Piatto aggiornato: ':'Piatto salvato: ')+name+'. Lo trovi in Piatti.',3500);
+}
+$('#dishMult').addEventListener('input',updateDishPreview);
+$('#dishClose').addEventListener('click',closeDish);
+$('#dishName').addEventListener('change',()=>{
+  const d=dishById(S.dishSel); if(!d) return;
+  const name=$('#dishName').value.trim();
+  const clash=S.dishes.find(x=>x.id!==d.id&&norm(x.n)===norm(name));
+  if(!name||clash){$('#dishName').value=d.n;flash('#dishMsg',clash?'Esiste già un piatto con questo nome.':'Il nome non può essere vuoto.');return;}
+  d.n=name; queueSave('dishes'); renderDishes();
+});
+$('#dishAdd').addEventListener('click',()=>{
+  const d=dishById(S.dishSel), m=parseNum($('#dishMult').value);
+  if(!d||!(m>0)){$('#dishMult').setAttribute('aria-invalid','true');return;}
+  $('#dishMult').setAttribute('aria-invalid','false');
+  const day=editDay(S.date);
+  d.items.forEach(i=>day.entries.push({id:uid(),meal:S.meal,name:i.name,g:r1(i.g*m),un:i.un,kcal:r1(i.kcal*m),p:r1(i.p*m),c:r1(i.c*m),f:r1(i.f*m),x:scaleX(i.x,m)}));
+  d.u=Date.now();
+  queueSave('d-'+S.date); queueSave('dishes');
+  renderNumbers(); renderMeals(); renderDishes();
+  flash('#dishMsg',d.n+' aggiunto a '+MEALS.find(x=>x[0]===S.meal)[1]+'.');
+});
+let dishConfirmTimer=null;
+$('#dishDel').addEventListener('click',()=>{
+  const d=dishById(S.dishSel); if(!d) return;
+  const b=$('#dishDel');
+  if(!S.dishConfirm){
+    S.dishConfirm=true; b.textContent='Conferma: elimina il piatto';
+    clearTimeout(dishConfirmTimer);
+    dishConfirmTimer=setTimeout(()=>{S.dishConfirm=false;b.textContent='Elimina piatto';},4000);
+    return;
+  }
+  S.dishes=S.dishes.filter(x=>x.id!==d.id);
+  closeDish(); queueSave('dishes'); renderDishes();
+  flash('#dishMsg','Piatto eliminato.');
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.matches&&e.target.matches('[data-dname]')){e.preventDefault();if(S.dishFor) doSaveDish(S.dishFor);}
 });
 
 /* ---------- backup: esporta / importa ---------- */
 const BK_LAST='yourfood.lastbackup', BK_PREV='yourfood.prev';
 let bkPending=null;
 function bkData(){
-  return {app:'yourfood',version:1,exported:new Date().toISOString(),profile:S.profile,days:S.days,weights:S.weights,foods:S.foods};
+  return {app:'yourfood',version:2,exported:new Date().toISOString(),profile:S.profile,days:S.days,weights:S.weights,foods:S.foods,dishes:S.dishes};
 }
 function bkText(){return JSON.stringify(bkData(),null,1);}
 function bkStamp(){try{localStorage.setItem(BK_LAST,new Date().toISOString());}catch(e){} bkShowLast();}
@@ -650,9 +847,10 @@ function bkParse(text){
   }
   const weights=(Array.isArray(o.weights)?o.weights:[]).filter(w=>w&&/^\d{4}-\d{2}-\d{2}$/.test(w.d)&&isFinite(+w.kg)&&+w.kg>0).map(w=>({d:w.d,kg:+w.kg}));
   const foods=normFoods(o.foods);
+  const dishes=normDishes(o.dishes);
   const profile=o.profile&&typeof o.profile==='object'?o.profile:null;
-  if(!profile&&!Object.keys(days).length&&!weights.length&&!foods.length) return null;
-  return {profile,days,weights,foods};
+  if(!profile&&!Object.keys(days).length&&!weights.length&&!foods.length&&!dishes.length) return null;
+  return {profile,days,weights,foods,dishes};
 }
 function bkCheck(){
   const text=$('#bkText').value.trim();
@@ -660,15 +858,15 @@ function bkCheck(){
   const d=bkParse(text);
   if(!d){bkPending=null;$('#bkPreview').innerHTML='';bkMsg('Questo testo non è un backup di YourFood.',true);return;}
   bkPending=d;
-  $('#bkPreview').innerHTML='<div class="note"><span>Nel backup: <b>'+Object.keys(d.days).length+'</b> giorni, <b>'+d.foods.length+'</b> alimenti, <b>'+d.weights.length+'</b> pesi'+(d.profile?', profilo':'')+'.</span></div>'+
+  $('#bkPreview').innerHTML='<div class="note"><span>Nel backup: <b>'+pl(Object.keys(d.days).length,'giorno','giorni')+'</b>, <b>'+pl(d.foods.length,'alimento','alimenti')+'</b>, <b>'+pl(d.dishes.length,'piatto','piatti')+'</b>, <b>'+pl(d.weights.length,'peso','pesi')+'</b>'+(d.profile?', profilo':'')+'.</span></div>'+
     '<div class="form-actions"><button class="btn" type="button" id="bkMerge">Unisci ai dati attuali</button><button class="btn alt" type="button" id="bkReplace">Sostituisci tutto</button><button class="link" type="button" id="bkCancel">Annulla</button></div>'+
     '<p class="hint">Unisci tiene quello che hai già e aggiunge o aggiorna ciò che c\'è nel backup. Sostituisci cancella i dati attuali.</p>';
 }
 function bkApply(mode){
   const d=bkPending; if(!d) return;
-  try{localStorage.setItem(BK_PREV,JSON.stringify({profile:S.profile,days:S.days,weights:S.weights,foods:S.foods}));}catch(e){}
+  try{localStorage.setItem(BK_PREV,JSON.stringify({profile:S.profile,days:S.days,weights:S.weights,foods:S.foods,dishes:S.dishes}));}catch(e){}
   if(mode==='replace'){
-    S.days={}; S.weights=[]; S.foods=[];
+    S.days={}; S.weights=[]; S.foods=[]; S.dishes=[];
   }
   if(d.profile) S.profile=normProfile(Object.assign({},mode==='merge'?S.profile:{},d.profile));
   Object.keys(d.days).forEach(k=>{S.days[k]=d.days[k];});
@@ -676,8 +874,10 @@ function bkApply(mode){
   S.weights=Object.keys(wm).sort().map(k=>wm[k]);
   const fm={}; S.foods.forEach(f=>{fm[f.id]=f;}); d.foods.forEach(f=>{fm[f.id]=f;});
   S.foods=Object.keys(fm).map(k=>fm[k]);
+  const dm={}; S.dishes.forEach(x=>{dm[x.id]=x;}); d.dishes.forEach(x=>{dm[x.id]=x;});
+  S.dishes=Object.keys(dm).map(k=>dm[k]);
   lsWrite();
-  ['profile','weights','foods'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);
+  ['profile','weights','foods','dishes'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);
   bkPending=null; $('#bkPreview').innerHTML=''; $('#bkText').value='';
   renderAll();
   bkMsg(mode==='replace'?'Dati sostituiti dal backup.':'Backup unito ai dati attuali.');
@@ -726,6 +926,7 @@ async function boot(){
         if(id==='profile'){S.profile=normProfile(data);found=true;}
         else if(id==='weights'){S.weights=Array.isArray(data.list)?data.list:[];found=true;}
         else if(id==='foods'){S.foods=normFoods(data.list);found=true;}
+        else if(id==='dishes'){S.dishes=normDishes(data.list);found=true;}
         else if(id.indexOf('d-')===0){S.days[id.slice(2)]=data;found=true;}
       });
       if(!found&&local){adopt(local);migrate=true;}
@@ -737,11 +938,14 @@ async function boot(){
   S.weights.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
   main.inert=false;
   $('#app').setAttribute('aria-busy','false');
+  S.sub.peso=S.weights.length?'andamento':'registra';
   renderAll();
+  Object.keys(S.sub).forEach(t=>showSub(t,S.sub[t]));
+  window.scrollTo(0,0);
   bkShowLast();
   if(!S.foods.length) $('#newFood').open=true;
   setStatus('ready');
-  if(migrate){['profile','weights','foods'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);}
+  if(migrate){['profile','weights','foods','dishes'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);}
 }
 boot();
 })();

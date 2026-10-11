@@ -6,6 +6,7 @@
 <title>YourFood</title>
 <link rel="icon" href="logo.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="colors.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,6 +17,7 @@
   </header>
 
   <main>
+    <!-- ================= OGGI ================= -->
     <section id="tab-oggi" class="panel">
       <div class="datebar">
         <button class="icon-btn" type="button" data-nav="-1" aria-label="Giorno precedente">&#8249;</button>
@@ -26,12 +28,30 @@
         <button class="icon-btn" type="button" data-nav="1" aria-label="Giorno successivo">&#8250;</button>
       </div>
       <div id="setupNote"></div>
-      <div class="card" id="dayCard"></div>
-      <div class="card" id="numbers"></div>
 
-      <div class="card" id="addCard">
+      <div class="subnav" role="group" aria-label="Sezioni di oggi">
+        <button type="button" class="chip" data-sub="riepilogo" aria-pressed="true">Riepilogo</button>
+        <button type="button" class="chip" data-sub="pasti" aria-pressed="false">Pasti</button>
+        <button type="button" class="chip" data-sub="aggiungi" aria-pressed="false">Aggiungi</button>
+        <button type="button" class="chip" data-sub="piatti" aria-pressed="false">Piatti</button>
+        <button type="button" class="chip" data-sub="attivita" aria-pressed="false">Attività</button>
+      </div>
+
+      <div class="card mini" id="miniNumbers" hidden></div>
+
+      <!-- Riepilogo -->
+      <div class="card" id="numbers" data-sec="riepilogo"></div>
+
+      <!-- Pasti -->
+      <div class="panel" data-sec="pasti" hidden>
+        <div id="meals" class="panel"></div>
+        <p class="msg" id="mealMsg" role="status"></p>
+      </div>
+
+      <!-- Aggiungi cibo -->
+      <div class="card" id="addCard" data-sec="aggiungi" hidden>
         <h2 class="h">Aggiungi cibo</h2>
-        <div class="chips" id="mealChips" role="group" aria-label="Pasto"></div>
+        <div class="chips mealchips" role="group" aria-label="Pasto"></div>
         <label class="field" style="margin-top:14px">
           <span>I tuoi alimenti</span>
           <input id="foodSearch" type="search" placeholder="Cerca per nome" autocomplete="off">
@@ -42,7 +62,7 @@
           <div class="pick-head"><strong id="pickName"></strong><span class="pick-actions"><button class="link" type="button" id="pickEdit">Modifica</button><button class="link" type="button" id="pickCancel">Annulla</button></span></div>
           <div class="muted" id="pickNote"></div>
           <div class="pick-row">
-            <label class="field"><span>Quantità (g)</span><input id="pickG" type="number" inputmode="decimal" min="1" step="1"></label>
+            <label class="field"><span id="pickGLabel">Quantità (g)</span><input id="pickG" type="number" inputmode="decimal" min="1" step="1"></label>
             <div class="preview" id="pickPreview"></div>
           </div>
           <p class="pickdetail" id="pickDetail"></p>
@@ -54,9 +74,15 @@
           <div class="grid2">
             <label class="field"><span>Nome</span><input id="cName" type="text" maxlength="60"></label>
             <label class="field"><span>Lista (facoltativa)</span><input id="cList" type="text" maxlength="30" list="dlLists" placeholder="Es. Proteine"></label>
-            <label class="field"><span>Porzione abituale (g)</span><input id="cG" type="number" inputmode="decimal" min="1" step="any" placeholder="100"></label>
+            <label class="field"><span>Si misura in</span>
+              <select id="cUn">
+                <option value="g">Grammi (solido)</option>
+                <option value="ml">Millilitri (liquido)</option>
+              </select>
+            </label>
+            <label class="field"><span id="cGLabel">Porzione abituale (g)</span><input id="cG" type="number" inputmode="decimal" min="1" step="any" placeholder="100"></label>
           </div>
-          <div class="eyebrow sec">Valori ogni 100 g, dall'etichetta</div>
+          <div class="eyebrow sec" id="cPer">Valori ogni 100 g, dall'etichetta</div>
           <div class="grid2">
             <label class="field"><span>Calorie (kcal)</span><input id="cK" type="number" inputmode="decimal" min="0" step="any"></label>
             <label class="field"><span>Proteine (g)</span><input id="cP" type="number" inputmode="decimal" min="0" step="any"></label>
@@ -70,7 +96,7 @@
           <div class="eyebrow sec">Vitamine e minerali, facoltativi</div>
           <div id="cExtra"></div>
           <button class="link" type="button" id="cAddRow">+ Aggiungi vitamina o minerale</button>
-          <p class="hint">Scrivi sempre i valori ogni 100 g, come sull'etichetta. L'app li moltiplica per i grammi che mangi. Se lasci vuote le calorie le calcolo dai macro. Se scrivi un nome già salvato, lo aggiorni.</p>
+          <p class="hint">Scrivi i valori come sull'etichetta, ogni 100 g o ogni 100 ml. L'app li adatta alla quantità che mangi. Se lasci vuote le calorie le ricavo dai macro. Se scrivi un nome già salvato, lo aggiorni.</p>
           <div class="form-actions">
             <button class="btn" type="button" id="cAdd">Salva nei miei alimenti</button>
             <button class="link" type="button" id="cCancelEdit" hidden>Annulla modifica</button>
@@ -82,15 +108,48 @@
         </datalist>
       </div>
 
-      <div id="meals" class="panel"></div>
+      <!-- Piatti salvati -->
+      <div class="card" id="dishCard" data-sec="piatti" hidden>
+        <h2 class="h">Piatti salvati</h2>
+        <div class="chips mealchips" role="group" aria-label="Pasto"></div>
+        <div id="dishList" class="results"></div>
+        <div class="pick" id="dishPick" hidden>
+          <div class="pick-head">
+            <label class="field" style="flex:1"><span>Nome del piatto</span><input id="dishName" type="text" maxlength="60"></label>
+          </div>
+          <ul class="list" id="dishItems"></ul>
+          <div class="pick-row">
+            <label class="field"><span>Porzioni</span><input id="dishMult" type="number" inputmode="decimal" min="0.25" step="0.25" value="1"></label>
+            <div class="preview" id="dishPreview"></div>
+          </div>
+          <p class="pickdetail">1 = come l'hai salvato, 0,5 = metà, 2 = doppio.</p>
+          <button class="btn" type="button" id="dishAdd">Aggiungi</button>
+          <div class="pick-actions">
+            <button class="link" type="button" id="dishDel">Elimina piatto</button>
+            <button class="link" type="button" id="dishClose">Chiudi</button>
+          </div>
+        </div>
+        <p class="msg" id="dishMsg" role="status"></p>
+      </div>
+
+      <!-- Attività del giorno -->
+      <div class="card" id="dayCard" data-sec="attivita" hidden></div>
     </section>
 
+    <!-- ================= OBIETTIVI ================= -->
     <section id="tab-obiettivi" class="panel" hidden>
-      <div class="card">
+      <div class="subnav" role="group" aria-label="Sezioni degli obiettivi">
+        <button type="button" class="chip" data-sub="dati" aria-pressed="true">I tuoi dati</button>
+        <button type="button" class="chip" data-sub="settimana" aria-pressed="false">Settimana</button>
+        <button type="button" class="chip" data-sub="fabbisogno" aria-pressed="false">Fabbisogno</button>
+        <button type="button" class="chip" data-sub="backup" aria-pressed="false">Backup</button>
+      </div>
+
+      <div class="card" data-sec="dati">
         <h2 class="h">I tuoi dati</h2>
         <div id="profileForm">
           <div class="field" style="margin-bottom:14px">
-            <span>Sesso (serve alla formula)</span>
+            <span>Sesso</span>
             <div class="seg" role="group" aria-label="Sesso">
               <button type="button" class="chip" data-sex="M" aria-pressed="true">Uomo</button>
               <button type="button" class="chip" data-sex="F" aria-pressed="false">Donna</button>
@@ -103,11 +162,11 @@
             <label class="field"><span>Proteine (g per kg)</span><input id="pProtein" type="number" inputmode="decimal" min="1.2" max="3" step="0.1" data-p="protein"></label>
           </div>
           <div class="grid2" style="margin-top:12px">
-            <label class="field"><span>Vita di tutti i giorni (PAL)</span>
+            <label class="field"><span>Vita di tutti i giorni</span>
               <select id="pNeat" data-p="neat">
-                <option value="1.2">Poco movimento (scuola, molto seduto) · 1,2</option>
-                <option value="1.3">Movimento leggero (cammini ogni giorno) · 1,3</option>
-                <option value="1.4">Attivo (spesso in piedi, ti muovi molto) · 1,4</option>
+                <option value="1.2">Poco movimento (scuola, molto seduto)</option>
+                <option value="1.3">Movimento leggero (cammini ogni giorno)</option>
+                <option value="1.4">Attivo (spesso in piedi, ti muovi molto)</option>
               </select>
             </label>
             <label class="field"><span>Surplus per crescere</span>
@@ -119,10 +178,10 @@
             </label>
           </div>
         </div>
-        <p class="hint">Il surplus è la quota di calorie sopra il mantenimento. Per mettere muscolo senza pancia conviene restare piccoli e controllare il peso ogni settimana.</p>
+        <p class="hint">Per mettere muscolo senza pancia conviene un surplus piccolo e controllare il peso ogni settimana.</p>
       </div>
 
-      <div class="card">
+      <div class="card" data-sec="settimana" hidden>
         <h2 class="h">Settimana tipo</h2>
         <div id="planForm"></div>
         <div class="grid2" style="margin-top:12px" id="trainDefaults">
@@ -131,17 +190,17 @@
           <label class="field"><span>Pesi (minuti)</span><input type="number" inputmode="numeric" min="5" max="300" step="5" data-p="gymMin" id="dGymMin"></label>
           <label class="field"><span>Pesi (intensità)</span><select data-p="gymInt" data-type="str" id="dGymInt"></select></label>
         </div>
-        <p class="hint">Ogni giorno nuovo parte da questa settimana tipo. Nella schermata Oggi puoi cambiarlo quando il programma salta o cambia.</p>
+        <p class="hint">Ogni giorno nuovo parte da questa settimana. Se in Oggi → Attività cambi la giornata di oggi o dei prossimi giorni, anche il piano di quel giorno della settimana si aggiorna da solo, e viceversa.</p>
       </div>
 
-      <div class="card">
+      <div class="card" data-sec="fabbisogno" hidden>
         <h2 class="h">Fabbisogno per tipo di giorno</h2>
         <div class="scroll" id="targetsTable"></div>
       </div>
-      
-      <div class="card" id="backupCard">
+
+      <div class="card" id="backupCard" data-sec="backup" hidden>
         <h2 class="h">Backup dei dati</h2>
-        <p class="hint" style="margin-top:0">Salva una copia di profilo, alimenti, giorni e pesi, e tienila fuori dal telefono (email, Drive, messaggi a te stesso).</p>
+        <p class="hint" style="margin-top:0">Salva una copia di profilo, alimenti, piatti, giorni e pesi, e tienila fuori dal telefono (email, Drive, messaggi a te stesso).</p>
         <div class="form-actions">
           <button class="btn" type="button" id="bkFile">Scarica file</button>
           <button class="btn alt" type="button" id="bkCopy">Copia testo</button>
@@ -156,29 +215,17 @@
         <div id="bkPreview"></div>
         <p class="msg" id="bkMsg" role="status"></p>
       </div>
-
-      <div class="card">
-        <h2 class="h">Come calcolo i numeri</h2>
-        <dl class="how">
-          <div><dt>1. Metabolismo basale (BMR)</dt><dd>Mifflin-St Jeor: 10 × kg + 6,25 × cm − 5 × età, poi +5 per l'uomo o −161 per la donna.</dd></div>
-          <div><dt>2. Calorie base</dt><dd>BMR × PAL. Il PAL è 1,2, 1,3 o 1,4 secondo la vita di tutti i giorni, senza contare lo sport.</dd></div>
-          <div><dt>3. Sport</dt><dd>(MET − 1) × kg × ore. MET nuoto 5, 7 o 9,8 e pesi 3,5, 5 o 6 secondo l'intensità. Il −1 toglie il basale, già contato nelle calorie base.</dd></div>
-          <div><dt>4. Mantenimento</dt><dd>Calorie base + sport.</dd></div>
-          <div><dt>5. Obiettivo del giorno</dt><dd>Mantenimento × (1 + surplus), arrotondato a 10 kcal.</dd></div>
-          <div><dt>6. Proteine</dt><dd>g per kg × kg di peso. Di base 1,8 g/kg. Sopra 1,6 g/kg gli studi mostrano guadagni extra molto piccoli.</dd></div>
-          <div><dt>7. Grassi</dt><dd>Il maggiore tra 25% dell'obiettivo ÷ 9 e 0,8 g × kg.</dd></div>
-          <div><dt>8. Carboidrati</dt><dd>(Obiettivo − proteine × 4 − grassi × 9) ÷ 4. Per questo salgono nei giorni di sport e scendono nei giorni di riposo.</dd></div>
-          <div><dt>9. Porzioni</dt><dd>Ogni valore dell'etichetta (ogni 100 g) × grammi mangiati ÷ 100. Con 70 g il fattore è 0,7.</dd></div>
-          <div><dt>10. Calorie non indicate</dt><dd>4 × proteine + 4 × carboidrati + 9 × grassi.</dd></div>
-          <div><dt>11. Totali del giorno</dt><dd>Somma dei valori di ogni alimento mangiato. Vitamine e minerali con lo stesso nome si sommano anche se le unità sono diverse (mg e µg).</dd></div>
-          <div><dt>12. Ripartizione delle calorie</dt><dd>Proteine × 4, carboidrati × 4 e grassi × 9, ognuno diviso per la somma dei tre.</dd></div>
-          <div><dt>Il controllo vero</dt><dd>Sono stime. La pesata settimanale dice se vanno bene per te. Se il peso sale troppo in fretta, abbassa il surplus.</dd></div>
-        </dl>
-      </div>
     </section>
 
+    <!-- ================= PESO ================= -->
     <section id="tab-peso" class="panel" hidden>
-      <div class="card">
+      <div class="subnav" role="group" aria-label="Sezioni del peso">
+        <button type="button" class="chip" data-sub="registra" aria-pressed="true">Registra</button>
+        <button type="button" class="chip" data-sub="andamento" aria-pressed="false">Andamento</button>
+        <button type="button" class="chip" data-sub="storico" aria-pressed="false">Storico</button>
+      </div>
+
+      <div class="card" data-sec="registra">
         <h2 class="h">Registra il peso</h2>
         <form id="weightForm" class="grid2" novalidate>
           <label class="field"><span>Data</span><input id="wDate" type="date"></label>
@@ -188,8 +235,8 @@
         <p class="hint">Pesati la mattina, a digiuno, dopo il bagno. Il peso più recente viene usato nei calcoli.</p>
         <p class="msg" id="wMsg" role="status"></p>
       </div>
-      <div class="card" id="trendCard"></div>
-      <div class="card" id="weightList"></div>
+      <div class="card" id="trendCard" data-sec="andamento" hidden></div>
+      <div class="card" id="weightList" data-sec="storico" hidden></div>
     </section>
   </main>
 
