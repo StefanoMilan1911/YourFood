@@ -41,7 +41,7 @@ const DEFAULT_PROFILE={sex:'M',age:18,height:175,weight:70,neat:1.3,surplus:10,p
 const TODAY=iso(new Date());
 function defaultMeal(){const h=new Date().getHours();return h<10?'colazione':h<15?'pranzo':h<18?'spuntino':'cena';}
 const S={profile:clone(DEFAULT_PROFILE),days:{},weights:[],foods:[],dishes:[],listFilter:'',editId:null,date:TODAY,meal:defaultMeal(),wUnit:'glass',weekOff:0,
-  sub:{oggi:'riepilogo',obiettivi:'dati',peso:'registra'},planNote:null,dishFor:null,dishSel:null,dishConfirm:false};
+  sub:{oggi:'riepilogo',obiettivi:'dati',peso:'registra'},planNote:null,dishFor:null,dishSel:null,dishConfirm:false,cat:''};
 const pl=(n,a,b)=>n+' '+(n===1?a:b);
 const wd=date=>(parse(date).getDay()+6)%7;
 
@@ -389,7 +389,7 @@ function renderResults(){
   renderListChips();
   const q=$('#foodSearch').value.trim(), list=searchFoods(q), el=$('#foodResults');
   if(!S.foods.length){
-    el.innerHTML='<p class="muted">Il tuo elenco è vuoto. Aggiungi il primo alimento con "Nuovo alimento" qui sotto, la prossima volta lo trovi qui.</p>';
+    el.innerHTML='<p class="muted">Il tuo elenco è vuoto. Usa gli alimenti comuni qui sotto oppure aggiungi il tuo con "Nuovo alimento".</p>';
     return;
   }
   if(!list.length){
@@ -400,6 +400,46 @@ function renderResults(){
     '<li class="resrow"><button type="button" class="res" data-food="'+esc(f.id)+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-sub">P '+f1(f.p)+' · C '+f1(f.c)+' · G '+f1(f.f)+' ogni 100 '+(f.un||'g')+'</span><span class="res-kcal">'+fmt(f.k)+'<small> kcal</small></span></button>'+
     '<button type="button" class="x" data-fdel="'+esc(f.id)+'" aria-label="Rimuovi '+esc(f.n)+' dall\'elenco">&times;</button></li>').join('')+'</ul>';
 }
+/* ---------- alimenti comuni (catalogo in foods.js) ---------- */
+let cmn=null;
+function renderCommon(){
+  const q=norm($('#foodSearch').value.trim());
+  $('#catChips').innerHTML=COMMON_CATS.map(c=>'<button type="button" class="chip" data-ccat="'+esc(c)+'" aria-pressed="'+(!q&&S.cat===c)+'">'+esc(c)+'</button>').join('');
+  let pool=[];
+  if(q){const ws=q.split(/\s+/);pool=COMMON.filter(f=>{const n=norm(f.n+' '+f.cat+' '+f.v.map(v=>v.cut).join(' '));return ws.every(w=>n.indexOf(w)>=0);}).slice(0,12);}
+  else if(S.cat) pool=COMMON.filter(f=>f.cat===S.cat);
+  const el=$('#commonResults');
+  if(!pool.length){el.innerHTML=(q||S.cat)?'<p class="muted">Nessun alimento comune con questo nome.</p>':'<p class="muted">Scegli una categoria o scrivi un nome nella ricerca.</p>';return;}
+  el.innerHTML='<ul class="list">'+pool.map(f=>{
+    const cuts=new Set(f.v.map(v=>v.cut).filter(Boolean)).size, hows=new Set(f.v.map(v=>v.how).filter(Boolean)).size;
+    const sub=(cuts>1?cuts+' parti':'')+(cuts>1&&hows>1?' · ':'')+(hows>1?hows+' cotture':'');
+    return '<li class="resrow"><button type="button" class="res" data-cfood="'+f.id+'"><span class="res-name">'+esc(f.n)+'</span><span class="res-cat">'+esc(sub||f.cat)+'</span><span class="res-go" aria-hidden="true">›</span></button></li>';}).join('')+'</ul>';
+}
+function openCommon(id){
+  const f=COMMON.find(x=>x.id===id); if(!f) return;
+  cmn={f:f,cut:f.v[0].cut,how:f.v[0].how};
+  renderVariants(); pickCommon();
+  $('#varBox').scrollIntoView({block:'nearest'});
+}
+function renderVariants(){
+  const f=cmn.f, cuts=Array.from(new Set(f.v.map(v=>v.cut)));
+  if(cuts.indexOf(cmn.cut)<0) cmn.cut=cuts[0];
+  const hows=Array.from(new Set(f.v.filter(v=>v.cut===cmn.cut).map(v=>v.how)));
+  if(hows.indexOf(cmn.how)<0) cmn.how=hows[0];
+  const opt=(arr,sel,empty)=>arr.map(x=>'<option value="'+esc(x)+'"'+(x===sel?' selected':'')+'>'+esc(x||empty)+'</option>').join('');
+  $('#varCut').innerHTML=opt(cuts,cmn.cut,'Intero'); $('#varCut').parentElement.hidden=cuts.length<2;
+  $('#varHow').innerHTML=opt(hows,cmn.how,'Come è'); $('#varHow').parentElement.hidden=hows.length<2;
+  $('#varBox').hidden=false;
+}
+function pickCommon(){
+  const f=cmn.f, v=f.v.find(x=>x.cut===cmn.cut&&x.how===cmn.how)||f.v[0];
+  const name=[f.n,v.cut,v.how].filter(Boolean).join(', ');
+  const note=(v.est?'Valore stimato: controllalo su una tabella o sull\'etichetta. ':'')+f.tip;
+  openPick({id:'cmn:'+f.id+':'+v.cut+':'+v.how,n:name,k:v.k,p:v.p,c:v.c,f:v.f,g:100,u:0,un:f.un,list:'',x:v.fib?[{n:'Fibre',v:v.fib,u:'g'}]:[],note:note.trim(),common:true},true);
+  $('#varFlag').textContent='';
+}
+$('#varCut').addEventListener('change',()=>{if(!cmn)return;cmn.cut=$('#varCut').value;renderVariants();pickCommon();});
+$('#varHow').addEventListener('change',()=>{if(!cmn)return;cmn.how=$('#varHow').value;pickCommon();});
 function updatePreview(){
   const g=parseFloat($('#pickG').value), el=$('#pickPreview'), dt=$('#pickDetail');
   if(!pick||!(g>0)){el.textContent='';dt.textContent='';return;}
@@ -407,17 +447,19 @@ function updatePreview(){
   el.innerHTML='<b>'+fmt(pick.k*k)+'</b> kcal<br>P '+f1(pick.p*k)+' · C '+f1(pick.c*k)+' · G '+f1(pick.f*k);
   dt.textContent=scaleExtras(pick,k).map(e=>e.n+' '+fmtX(e.v)+' '+e.u).join(' · ');
 }
-function openPick(f){
+function openPick(f,keepG){
+  const prevG=$('#pickG').value;
   pick=f;
+  $('#pickEdit').textContent=f.common?'Salva tra i miei':'Modifica';
   $('#foodPick').hidden=false;
   $('#pickName').textContent=f.n;
   $('#pickNote').textContent=f.note||'';
   $('#pickGLabel').textContent='Quantità ('+(f.un||'g')+')';
-  $('#pickG').value=f.g||100;
+  $('#pickG').value=(keepG&&prevG)?prevG:(f.g||100);
   updatePreview();
-  const g=$('#pickG'); g.focus(); g.select();
+  if(!keepG){const g=$('#pickG'); g.focus(); g.select();}
 }
-function closePick(){pick=null;$('#foodPick').hidden=true;}
+function closePick(){pick=null;cmn=null;$('#foodPick').hidden=true;$('#varBox').hidden=true;}
 let msgTimer=null;
 function flash(id,text,ms){
   const el=$(id); el.textContent=text;
@@ -621,7 +663,7 @@ function showTab(name){
 }
 function renderAll(){
   renderHeader(); renderDayCard(); renderNumbers(); renderMeals(); renderMealChips();
-  renderResults(); renderDishes(); renderWaterForm(); syncProfileForm(); renderWaterTable(); renderWeight(); renderWeek();
+  renderResults(); renderCommon(); renderDishes(); renderWaterForm(); syncProfileForm(); renderWaterTable(); renderWeight(); renderWeek();
 }
 function onProfileChanged(){
   S.profile.touched=true;
@@ -652,6 +694,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.meal){S.meal=t.dataset.meal;renderMealChips();return;}
   if(t.dataset.lf!==undefined){S.listFilter=t.dataset.lf;renderResults();return;}
   if(t.dataset.xdel!==undefined){t.closest('.xrow').remove();return;}
+  if(t.dataset.ccat!==undefined){S.cat=S.cat===t.dataset.ccat?'':t.dataset.ccat;renderCommon();return;}
+  if(t.dataset.cfood!==undefined){openCommon(t.dataset.cfood);return;}
   if(t.dataset.food!==undefined){const f=foodById(t.dataset.food);if(f) openPick(f);return;}
   if(t.dataset.fdel){
     S.foods=S.foods.filter(x=>x.id!==t.dataset.fdel);
@@ -700,7 +744,7 @@ $('#planForm').addEventListener('change',e=>{
   setPlanAct(+el.dataset.plan,el.value);
   renderHeader();renderDayCard();renderNumbers();renderWaterTable();
 });
-$('#foodSearch').addEventListener('input',renderResults);
+$('#foodSearch').addEventListener('input',()=>{renderResults();renderCommon();});
 $('#pickG').addEventListener('input',updatePreview);
 $('#pickCancel').addEventListener('click',closePick);
 $('#pickAdd').addEventListener('click',()=>{
@@ -713,7 +757,7 @@ $('#pickAdd').addEventListener('click',()=>{
   queueSave('foods');
   closePick();
   $('#foodSearch').value='';
-  renderResults();
+  renderResults(); renderCommon();
 });
 function addExtraRow(n,v,u){
   const row=document.createElement('div');
@@ -1154,7 +1198,6 @@ async function boot(){
   Object.keys(S.sub).forEach(t=>showSub(t,S.sub[t]));
   window.scrollTo(0,0);
   bkShowLast();
-  if(!S.foods.length) $('#newFood').open=true;
   setStatus('ready');
   if(migrate){['profile','weights','foods','dishes'].concat(Object.keys(S.days).map(k=>'d-'+k)).forEach(queueSave);}
 }

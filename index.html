@@ -59,6 +59,16 @@
         </label>
         <div class="chips" id="listChips" role="group" aria-label="Liste di alimenti" style="margin-top:12px" hidden></div>
         <div class="results" id="foodResults"></div>
+        <div class="common" id="commonBox">
+          <div class="eyebrow">Alimenti comuni</div>
+          <div class="chips" id="catChips" role="group" aria-label="Categorie di alimenti comuni"></div>
+          <div class="results" id="commonResults"></div>
+        </div>
+        <div class="varbox" id="varBox" hidden>
+          <label class="field"><span>Parte</span><select id="varCut"></select></label>
+          <label class="field"><span>Come lo mangi</span><select id="varHow"></select></label>
+          <p class="muted" id="varFlag"></p>
+        </div>
         <div class="pick" id="foodPick" hidden>
           <div class="pick-head"><strong id="pickName"></strong><span class="pick-actions"><button class="link" type="button" id="pickEdit">Modifica</button><button class="link" type="button" id="pickCancel">Annulla</button></span></div>
           <div class="muted" id="pickNote"></div>
@@ -274,6 +284,7 @@
   </nav>
 </div>
 
+<script src="foods.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
