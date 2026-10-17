@@ -68,11 +68,23 @@ function normDishes(list){
 function normProfile(p){
   const q=Object.assign(clone(DEFAULT_PROFILE),p||{});
   if(!Array.isArray(q.plan)||q.plan.length!==7) q.plan=DEFAULT_PROFILE.plan.slice();
+  q.planHist=(Array.isArray(q.planHist)?q.planHist:[]).filter(h=>h&&typeof h.from==='string'&&Array.isArray(h.plan)&&h.plan.length===7).sort((x,y)=>x.from<y.from?-1:1);
   return q;
+}
+/* Il piano settimanale e' un modello. Ogni modifica vale da oggi in poi: lo storico dei piani
+   (planHist) fa si' che i giorni passati non cambino mai, anche se non hai registrato nulla. */
+function planFor(date){
+  const h=S.profile.planHist;
+  if(Array.isArray(h)&&h.length){
+    let pl=null;
+    for(let i=0;i<h.length;i++){if(h[i].from<=date) pl=h[i].plan;}
+    if(pl) return pl;
+  }
+  return S.profile.plan;
 }
 function newDay(date){
   const p=S.profile, idx=(parse(date).getDay()+6)%7;
-  return {date,act:p.plan[idx]||'R',swimMin:p.swimMin,swimInt:p.swimInt,gymMin:p.gymMin,gymInt:p.gymInt,entries:[]};
+  return {date,act:planFor(date)[idx]||'R',swimMin:p.swimMin,swimInt:p.swimInt,gymMin:p.gymMin,gymInt:p.gymInt,entries:[]};
 }
 function getDay(date){return S.days[date]||newDay(date);}
 function editDay(date){if(!S.days[date]) S.days[date]=newDay(date);return S.days[date];}
@@ -916,39 +928,31 @@ $('#wq').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();a
 /* ---------- piano settimanale collegato ai giorni ---------- */
 /* Cambiare la giornata di oggi (o di un giorno futuro) aggiorna il piano di quel giorno della settimana
    e i giorni futuri gia' salvati con lo stesso giorno. I giorni passati non si toccano. */
+/* Cambiare l'attivita' di un giorno vale solo per quel giorno (ogni settimana ha i suoi dati). */
 function setDayAct(date,act){
-  editDay(date).act=act;
+  const d=editDay(date);
+  d.act=act; d.man=true;
   queueSave('d-'+date);
   S.planNote=null;
-  if(date<TODAY) return;
-  const idx=wd(date), prevPlan=S.profile.plan[idx];
-  if(prevPlan===act) return;
-  const prevDays={};
-  S.profile.plan[idx]=act;
-  S.profile.touched=true;
-  Object.keys(S.days).forEach(k=>{
-    if(k>=TODAY&&k!==date&&wd(k)===idx&&S.days[k].act!==act){prevDays[k]=S.days[k].act;S.days[k].act=act;queueSave('d-'+k);}
-  });
-  queueSave('profile');
-  S.planNote={date,idx,prevPlan,prevDays};
 }
+/* Cambiare il piano vale da oggi in poi: i giorni passati restano come erano. */
 function setPlanAct(idx,act){
-  S.profile.plan[idx]=act;
-  S.profile.touched=true;
+  const p=S.profile;
+  if(!Array.isArray(p.planHist)) p.planHist=[];
+  if(!p.planHist.length) p.planHist.push({from:'0000-00-00',plan:p.plan.slice()});
+  p.plan[idx]=act;
+  const cur=p.planHist.find(h=>h.from===TODAY);
+  if(cur) cur.plan=p.plan.slice(); else p.planHist.push({from:TODAY,plan:p.plan.slice()});
+  p.planHist.sort((x,y)=>x.from<y.from?-1:1);
+  p.touched=true;
   queueSave('profile');
   Object.keys(S.days).forEach(k=>{
-    if(k>=TODAY&&wd(k)===idx&&S.days[k].act!==act){S.days[k].act=act;queueSave('d-'+k);}
+    const d=S.days[k];
+    if(k>=TODAY&&wd(k)===idx&&!d.man&&d.act!==act){d.act=act;queueSave('d-'+k);}
   });
   S.planNote=null;
 }
-function planOnlyToday(){
-  const n=S.planNote; if(!n) return;
-  S.profile.plan[n.idx]=n.prevPlan;
-  queueSave('profile');
-  Object.keys(n.prevDays).forEach(k=>{if(S.days[k]){S.days[k].act=n.prevDays[k];queueSave('d-'+k);}});
-  S.planNote=null;
-  renderDayCard(); renderWaterTable(); syncProfileForm();
-}
+function planOnlyToday(){S.planNote=null;}
 
 /* ---------- piatti salvati ---------- */
 function dishById(id){return S.dishes.find(d=>d.id===id)||null;}
