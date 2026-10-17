@@ -1,12 +1,12 @@
 /* Alimenti comuni, valori ogni 100 g (o 100 ml) di parte edibile.
    Riga: [parte, cottura, kcal, proteine, carboidrati, grassi, fibre, flag]
-   flag 's' = valore STIMATO da me (friggitrice ad aria, olio aggiunto, impanature): controllalo.
+   g = quantita' di default in g/ml (es. un panino intero). flag 's' = valore STIMATO da me (friggitrice ad aria, olio aggiunto, impanature): controllalo.
    Gli altri valori sono quelli che ricordo dalle tabelle USDA e CREA: vanno comunque verificati. */
 const COMMON=[];
 (function(){
-const C='Carne',P='Pesce',U='Uova e latticini',G='Cereali e patate',L='Legumi',V='Verdure',R='Frutta',A='Altro';
+const FF='Fast food',SA='Salse e condimenti',C='Carne',P='Pesce',U='Uova e latticini',G='Cereali e patate',L='Legumi',V='Verdure',R='Frutta',A='Altro';
 const cr='crudo',pia='alla piastra',fo='al forno',bo='bollito',ar='in friggitrice ad aria',pa='in padella con olio',fr='fritto impanato',ct='cotto';
-function F(n,cat,un,rows,tip){COMMON.push({id:'c'+COMMON.length,n,cat,un,tip:tip||'',v:rows.map(r=>({cut:r[0],how:r[1],k:r[2],p:r[3],c:r[4],f:r[5],fib:r[6]||0,est:r[7]==='s'}))});}
+function F(n,cat,un,rows,tip){COMMON.push({id:'c'+COMMON.length,n,cat,un,tip:tip||'',v:rows.map(r=>({cut:r[0],how:r[1],k:r[2],p:r[3],c:r[4],f:r[5],fib:r[6]||0,est:r[7]==='s',g:r[8]||0}))});}
 /* Carne */
 F('Pollo',C,'g',[
  ['petto, senza pelle',cr,120,22.5,0,2.6],['petto, senza pelle',pia,165,31,0,3.6],['petto, senza pelle',fo,160,30,0,3.5],['petto, senza pelle',bo,151,29,0,3.2],
@@ -73,6 +73,45 @@ F('Uva',R,'g',[['','',69,0.7,18,0.2,0.9]]);
 F('Fragole',R,'g',[['','',32,0.7,7.7,0.3,2]]);
 F('Mirtilli',R,'g',[['','',57,0.7,14.5,0.3,2.4]]);
 F('Avocado',R,'g',[['','',160,2,8.5,14.7,6.7]]);
+/* Frutta in piu' */
+F('Kiwi',R,'g',[['verde','',61,1.1,14.7,0.5,3,'',75],['giallo','',60,1.2,14,0.3,1.4,'',75]],'Un kiwi medio senza buccia pesa circa 75 g.');
+F('Ananas',R,'g',[['','',50,0.5,13,0.1,1.4]]);
+F('Anguria',R,'g',[['','',30,0.6,7.6,0.2,0.4]]);
+F('Melone',R,'g',[['','',34,0.8,8,0.2,0.9]]);
+F('Pesca',R,'g',[['','',39,0.9,9.5,0.3,1.5]]);
+F('Albicocche',R,'g',[['','',48,1.4,11,0.4,2]]);
+F('Ciliegie',R,'g',[['','',63,1,16,0.2,2.1]]);
+F('Clementine',R,'g',[['','',53,0.8,13,0.3,1.7]]);
+F('Fichi',R,'g',[['','',74,0.8,19,0.3,2.9]]);
+/* Fast food: valori medi STIMATI da me, vedi nota */
+const FFN='Valori medi stimati da me. Le catene pubblicano i valori ufficiali sul loro sito: se vuoi precisione usa quelli (Salva tra i miei).';
+F('Kebab',FF,'g',[
+ ['panino con carne, insalata e salsa','',200,11,17,10,1.5,'s',350],
+ ['durum (rotolo)','',205,11,20,9,1.5,'s',350],
+ ['piatto senza pane (carne, insalata, salsa)','',170,13,5,11,1,'s',250],
+ ['solo carne','',215,18,2,15,0,'s',150]],'Panino e durum intero: circa 350 g. La salsa cambia molto il risultato. '+FFN);
+F('McDonald\'s',FF,'g',[
+ ['Big Mac','',234,12,19,13.5,1.5,'s',215],
+ ['Cheeseburger','',252,13.5,28,10.5,1.5,'s',119],
+ ['Hamburger','',250,13,30,9,1.5,'s',100],
+ ['McChicken','',270,12,24,14,1.5,'s',150],
+ ['McNuggets (6 pezzi)','',270,16,17,16,1,'s',100],
+ ['patatine piccole','',297,3.5,38,14.5,3,'s',80],
+ ['patatine medie','',297,3.5,38,14.5,3,'s',114],
+ ['patatine grandi','',297,3.5,38,14.5,3,'s',150]],'La quantità è già impostata sul peso di un prodotto intero. '+FFN);
+F('Pizza margherita',FF,'g',[['','',266,11,33,10,2,'s',300]],'Una pizza intera da pizzeria pesa circa 300 g di impasto e condimento. Stima mia.');
+F('Coca-Cola',FF,'ml',[['normale','',42,0,10.6,0,0,'',330],['zero','',0.3,0,0,0,0,'',330]],'Una lattina è 330 ml.');
+F('Succo d\'arancia',FF,'ml',[['','',45,0.7,10,0.2,0.2,'',200]]);
+F('Birra',FF,'ml',[['','',43,0.5,3.6,0,0,'',330]],'Valore tipico di una birra chiara da 4,5-5%. Contiene anche alcol, che fa circa 7 kcal per grammo.');
+/* Salse e condimenti */
+const SAN='Si misura a cucchiai: un cucchiaio sono circa 15 g, un cucchiaino circa 5 g. Meglio pesarla una volta per farti un riferimento.';
+F('Maionese',SA,'g',[['classica','',685,1.1,1.5,75,0,'',15],['light','',297,1,8,29,0,'s',15]],SAN+' Un cucchiaio di maionese classica vale circa 100 kcal.');
+F('Ketchup',SA,'g',[['','',100,1.2,24,0.1,0.3,'',15]],SAN);
+F('Senape',SA,'g',[['','',70,4,6,4,2,'s',10]],SAN);
+F('Salsa yogurt e aglio (kebab)',SA,'g',[['','',150,2,6,13,0,'s',30]],'Stima mia: dipende da come è fatta (yogurt, maionese, olio). '+SAN);
+F('Pesto genovese',SA,'g',[['','',450,5,4,46,1.5,'',20]],SAN);
+F('Hummus',SA,'g',[['','',232,8,14,16,6,'',30]],SAN);
+F('Burro',SA,'g',[['','',741,0.8,0,82,0,'',10]],'Una noce di burro sono circa 10 g.');
 /* Altro */
 F('Mandorle',A,'g',[['','',579,21,22,50,12]]);
 F('Noci',A,'g',[['','',654,15,14,65,6.7]]);
@@ -83,4 +122,4 @@ F('Cioccolato fondente 70%',A,'g',[['','',598,7.8,46,43,11]]);
 F('Miele',A,'g',[['','',304,0.3,82,0,0]]);
 F('Proteine in polvere (whey)',A,'g',[['valori tipici','',380,80,6,5,0,'s']],'Cambia molto da marca a marca: meglio usare l\'etichetta del tuo barattolo.');
 })();
-const COMMON_CATS=['Carne','Pesce','Uova e latticini','Cereali e patate','Legumi','Verdure','Frutta','Altro'];
+const COMMON_CATS=['Carne','Pesce','Uova e latticini','Cereali e patate','Legumi','Verdure','Frutta','Fast food','Salse e condimenti','Altro'];

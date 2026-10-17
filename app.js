@@ -431,15 +431,15 @@ function renderVariants(){
   $('#varHow').innerHTML=opt(hows,cmn.how,'Come è'); $('#varHow').parentElement.hidden=hows.length<2;
   $('#varBox').hidden=false;
 }
-function pickCommon(){
+function pickCommon(keep){
   const f=cmn.f, v=f.v.find(x=>x.cut===cmn.cut&&x.how===cmn.how)||f.v[0];
   const name=[f.n,v.cut,v.how].filter(Boolean).join(', ');
   const note=(v.est?'Valore stimato: controllalo su una tabella o sull\'etichetta. ':'')+f.tip;
-  openPick({id:'cmn:'+f.id+':'+v.cut+':'+v.how,n:name,k:v.k,p:v.p,c:v.c,f:v.f,g:100,u:0,un:f.un,list:'',x:v.fib?[{n:'Fibre',v:v.fib,u:'g'}]:[],note:note.trim(),common:true},true);
+  openPick({id:'cmn:'+f.id+':'+v.cut+':'+v.how,n:name,k:v.k,p:v.p,c:v.c,f:v.f,g:v.g||100,u:0,un:f.un,list:'',x:v.fib?[{n:'Fibre',v:v.fib,u:'g'}]:[],note:note.trim(),common:true},!!keep&&!v.g);
   $('#varFlag').textContent='';
 }
-$('#varCut').addEventListener('change',()=>{if(!cmn)return;cmn.cut=$('#varCut').value;renderVariants();pickCommon();});
-$('#varHow').addEventListener('change',()=>{if(!cmn)return;cmn.how=$('#varHow').value;pickCommon();});
+$('#varCut').addEventListener('change',()=>{if(!cmn)return;cmn.cut=$('#varCut').value;renderVariants();pickCommon(true);});
+$('#varHow').addEventListener('change',()=>{if(!cmn)return;cmn.how=$('#varHow').value;pickCommon(true);});
 function updatePreview(){
   const g=parseFloat($('#pickG').value), el=$('#pickPreview'), dt=$('#pickDetail');
   if(!pick||!(g>0)){el.textContent='';dt.textContent='';return;}
